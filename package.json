@@ -11,6 +11,7 @@
   "dependencies": {
     "@tabler/icons-vue": "^3.46.0",
     "bootstrap": "^5.3.8",
+    "joi": "^18.2.8",
     "pinia": "^4.0.2",
     "vue": "^3.5.40",
     "vue-router": "^5.2.0"

@@ -1,7 +1,0 @@
-<template><main class="verify-page"><div class="verify-card"><div class="verify-mark">✓</div><h1>{{ loading ? 'Verifying your email…' : success ? 'Email verified' : 'Verification failed' }}</h1><p>{{ message }}</p><RouterLink class="verify-button" :to="{name:'login'}">Continue to login</RouterLink></div></main></template>
-<script setup>
-import { onMounted, ref } from 'vue'; import { useRoute } from 'vue-router'; import { apiRequest } from '@/services/api'
-const route=useRoute(),loading=ref(true),success=ref(false),message=ref('')
-onMounted(async()=>{try{await apiRequest(`/auth/user/verify-email?token=${encodeURIComponent(route.query.token || '')}`);success.value=true;message.value='Your account is ready. You can now sign in.'}catch(e){message.value=e.message}finally{loading.value=false}})
-</script>
-<style scoped>.verify-page{min-height:100vh;display:grid;place-items:center;background:#f7f7fb}.verify-card{width:min(92%,460px);padding:48px;text-align:center;border:1px solid #eceaf5;border-radius:20px;background:#fff;box-shadow:0 20px 60px #4d3b9412}.verify-mark{display:grid;place-items:center;width:56px;height:56px;margin:0 auto 20px;border-radius:50%;color:#fff;background:#7650df;font-size:30px}.verify-card h1{margin:0 0 12px}.verify-card p{color:#778096}.verify-button{display:inline-block;margin-top:20px;padding:13px 22px;border-radius:9px;color:#fff;background:#6d3de2;text-decoration:none;font-weight:700}</style>

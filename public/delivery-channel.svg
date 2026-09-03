@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 400" role="img" aria-labelledby="title desc">
+  <title id="title">Delivery channel distribution</title>
+  <desc id="desc">Segmented ring showing delivery channel distribution.</desc>
+  <g fill="none" stroke-linecap="round" stroke-width="54">
+    <path stroke="#8751ff" d="M125 270a150 150 0 1 1 230 0"/>
+    <path stroke="#c1b2fa" d="M355 270a150 150 0 0 1-38 45"/>
+    <path stroke="#351276" d="M295 330a150 150 0 0 1-112-10"/>
+  </g>
+</svg>

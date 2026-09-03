@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" role="img" aria-labelledby="title desc">
+  <title id="title">Delivery performance</title>
+  <desc id="desc">A purple income trend from January through August with May highlighted.</desc>
+  <defs>
+    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b99af8" stop-opacity=".58"/>
+      <stop offset="1" stop-color="#f7f4ff" stop-opacity=".16"/>
+    </linearGradient>
+  </defs>
+  <g font-family="Geist, sans-serif" fill="#687487" font-size="20">
+    <text x="0" y="58">80</text>
+    <text x="0" y="158">60</text>
+    <text x="0" y="258">40</text>
+    <text x="0" y="358">20</text>
+    <text x="14" y="458">0</text>
+    <text x="55" y="492">Jan</text>
+    <text x="210" y="492">Feb</text>
+    <text x="365" y="492">Mar</text>
+    <text x="520" y="492">Apr</text>
+    <text x="675" y="492">May</text>
+    <text x="830" y="492">Jun</text>
+    <text x="985" y="492">Jul</text>
+    <text x="1135" y="492">Aug</text>
+  </g>
+  <g stroke="#dfe2ec" stroke-dasharray="6 6">
+    <path d="M52 48H1190"/><path d="M52 148H1190"/><path d="M52 248H1190"/><path d="M52 348H1190"/><path d="M52 448H1190"/>
+  </g>
+  <path fill="url(#area)" d="M52 223 C120 201 175 180 280 190 S390 238 465 210 S560 132 620 148 S700 194 775 170 S875 98 930 112 S1030 156 1080 160 S1150 166 1190 168 L1190 448 L52 448Z"/>
+  <path fill="none" stroke="#8751ff" stroke-width="5" stroke-linecap="round" d="M52 223 C120 201 175 180 280 190 S390 238 465 210 S560 132 620 148 S700 194 775 170 S875 98 930 112 S1030 156 1080 160 S1150 166 1190 168"/>
+  <path stroke="#996dff" stroke-width="2" stroke-dasharray="8 8" d="M775 48V448"/>
+  <circle cx="775" cy="170" r="8" fill="#8751ff" stroke="#fff" stroke-width="4"/>
+  <g transform="translate(800 178)">
+    <rect width="285" height="130" rx="18" fill="#fff" stroke="#e4e5eb" stroke-width="2"/>
+    <text x="28" y="42" font-family="Geist, sans-serif" font-size="24" font-weight="700" fill="#152033">May</text>
+    <circle cx="38" cy="82" r="9" fill="#8751ff"/>
+    <text x="60" y="90" font-family="Geist, sans-serif" font-size="21" fill="#687487">Income</text>
+    <text x="198" y="90" font-family="Geist, sans-serif" font-size="21" font-weight="700" fill="#152033">: $55</text>
+  </g>
+</svg>
