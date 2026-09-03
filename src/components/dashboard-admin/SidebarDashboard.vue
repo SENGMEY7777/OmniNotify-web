@@ -71,11 +71,17 @@ import { IconSettings,IconBellRinging,
   } from '@tabler/icons-vue';
 import { IconLayoutDashboard } from '@tabler/icons-vue';
 import { IconLogout2 } from '@tabler/icons-vue';
+import { apiRequest } from '@/services/api'
+import { useRouter } from 'vue-router'
 
-function handleLogout() {
+const router = useRouter()
+
+async function handleLogout() {
+	try { await apiRequest('/auth/admin/logout', { method: 'DELETE' }) } catch (_) { /* clear local session even if the token is expired */ }
 	localStorage.removeItem('token')
 	localStorage.removeItem('user')
 	sessionStorage.clear()
+	router.push({ name: 'admin-dashboard' })
 }
 </script>
 

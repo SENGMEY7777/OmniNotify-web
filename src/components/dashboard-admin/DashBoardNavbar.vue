@@ -9,7 +9,6 @@ import TablerIcon from '../TablerIcon.vue'
 			<input type="search" placeholder="Search transaction, Budget ..." aria-label="Search transactions and budgets" />
 			<kbd aria-label="Command K">⌘ K</kbd>
 		</label>
-
 		<div class="navbar-actions">
 			<div class="utility-actions">
 				<button class="icon-button" type="button" aria-label="Toggle theme">
@@ -34,9 +33,7 @@ import TablerIcon from '../TablerIcon.vue'
 
 <style scoped>
 
-.search-field {
-	height: 50px !important;
-}
+
 .dashboard-navbar {
 	min-height: 75px;
 	padding: 0 36px;
@@ -53,7 +50,7 @@ import TablerIcon from '../TablerIcon.vue'
 .profile-button {
 	display: flex;
 	align-items: center;
-	height: 45px !important;
+	height: 50px;
 }
 
 .search-field {
@@ -127,7 +124,7 @@ kbd {
 
 .utility-actions,
 .profile-button {
-	min-height: 65px;
+	min-height: 50px;
 	border: 1px solid #dfe2e8;
 	border-radius: 18px;
 	background: #fff;
@@ -140,7 +137,7 @@ kbd {
 
 .icon-button {
 	width: 84px;
-	height: 63px;
+	height: 48px;
 	display: grid;
 	place-items: center;
 	border: 0;
@@ -211,8 +208,8 @@ kbd {
 }
 
 .avatar {
-	width: 48px;
-	height: 50px;
+	width: 45px;
+	height: 45px;
 	display: grid;
 	place-items: center;
 	border-radius: 10px;
@@ -255,6 +252,12 @@ kbd {
 		min-width: 0;
 		min-height: 48px;
 		padding-right: 14px;
+	}
+
+	.search-field {
+		flex-basis: 100%;
+		width: 100%;
+		height: 50px;
 	}
 
 	.avatar {
