@@ -108,11 +108,11 @@
 </template>
 
 <script setup>
-import BaseTable from '@/components/ui/BaseTable.vue';
-import BaseStateCard from '../../components/ui/BaseStateCard.vue'
-import DeliveryPerformanceImage from '../../components/dashboard-admin/DeliveryPerformanceImage.vue'
-import CalendarDate from '../../components/dashboard-admin/CalendarDate.vue'
-import DeliveryChannelChart from '../../components/dashboard-admin/DeliveryChannelChart.vue'
+import BaseTable from '@/components/common/BaseTable.vue'
+import BaseStateCard from '@/components/common/BaseStateCard.vue'
+import DeliveryPerformanceImage from '@/components/dashboard/DeliveryPerformanceImage.vue'
+import CalendarDate from '@/components/dashboard/CalendarDate.vue'
+import DeliveryChannelChart from '@/components/dashboard/DeliveryChannelChart.vue'
 import { get } from '@/services/api'
 import { onMounted, ref } from 'vue'
 
