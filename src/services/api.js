@@ -1,0 +1,22 @@
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api').replace(/\/$/, '')
+
+export async function apiRequest(path, options = {}) {
+    const token = localStorage.getItem('token')
+    const headers = new Headers(options.headers || {})
+    if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json')
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+
+    const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok || payload.success === false) {
+        if (response.status === 401 || response.status === 403) window.dispatchEvent(new CustomEvent('auth-expired'))
+        throw new Error(payload.message || `Request failed (${response.status})`)
+    }
+    return payload.data ?? payload
+}
+
+export const get = (path) => apiRequest(path)
+export const post = (path, body) => apiRequest(path, { method: 'POST', body: JSON.stringify(body) })
+export const put = (path, body) => apiRequest(path, { method: 'PUT', body: JSON.stringify(body) })
+export const patch = (path, body) => apiRequest(path, { method: 'PATCH', body: JSON.stringify(body) })
+export const del = (path) => apiRequest(path, { method: 'DELETE' })
