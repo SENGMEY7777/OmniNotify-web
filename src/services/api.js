@@ -1,7 +1,9 @@
+import { getCookie } from '@/utils/cookies'
+
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api').replace(/\/$/, '')
 
 export async function apiRequest(path, options = {}) {
-    const token = localStorage.getItem('token')
+    const token = getCookie('token') || localStorage.getItem('token')
     const headers = new Headers(options.headers || {})
     if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json')
     if (token) headers.set('Authorization', `Bearer ${token}`)
