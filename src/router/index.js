@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { getCookie } from '@/utils/cookies'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -6,25 +7,31 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: () => import('../views/AuthView.vue'),
+      component: () => import('@/views/auth/LoginView.vue'),
       meta: { guestOnly: true },
     },
     {
       path: '/register',
       name: 'register',
-      component: () => import('../views/AuthView.vue'),
+      component: () => import('@/views/auth/RegisterView.vue'),
       meta: { guestOnly: true },
     },
     {
       path: '/forgot-password',
       name: 'forgot',
-      component: () => import('../views/AuthView.vue'),
+      component: () => import('@/views/auth/ForgotPasswordView.vue'),
+      meta: { guestOnly: true },
+    },
+    {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('@/views/auth/ResetPasswordView.vue'),
       meta: { guestOnly: true },
     },
     {
       path: '/verify-email',
       name: 'verify-email',
-      component: () => import('../views/VerifyEmailView.vue'),
+      component: () => import('@/views/auth/VerifyEmailView.vue'),
       meta: { guestOnly: true },
     },
     {
@@ -35,43 +42,43 @@ const router = createRouter({
     {
       path: '/admin',
       name: 'admin',
-      component: () => import('../components/layouts/DashbaordLayout.vue'),
+      component: () => import('@/components/layout/DashboardLayout.vue'),
       meta: { requiresAuth: true, role: 'admin' },
       children: [
         {
           path: '',
           name: 'admin-dashboard',
-          component: () => import('../views/admin/AdminDashboardView.vue'),
+          component: () => import('@/views/admin/AdminDashboardView.vue'),
         },
         {
           path: 'manage-user',
           name: 'manage-user',
-          component: () => import('../views/admin/ManageUser.vue'),
+          component: () => import('@/views/admin/ManageUserView.vue'),
         },
         {
           path: 'notification',
           name: 'notification',
-          component: () => import('../views/admin/ManageNotification.vue'),
+          component: () => import('@/views/admin/ManageNotificationView.vue'),
         },
         {
           path: 'template',
           name: 'template',
-          component: () => import('../views/admin/TemplateDashbard.vue'),
+          component: () => import('@/views/admin/TemplateDashboardView.vue'),
         },
         {
           path: 'delivery-log',
           name: 'delivery-log',
-          component: () => import('../views/admin/DeliveryLog.vue'),
+          component: () => import('@/views/admin/DeliveryLogView.vue'),
         },
         {
           path: 'audit-log',
           name: 'audit-log',
-          component: () => import('../views/admin/AuditLog.vue'),
+          component: () => import('@/views/admin/AuditLogView.vue'),
         },
         {
           path: 'setting',
           name: 'setting',
-          component: () => import('../views/pages/profileAdmin/Setting.vue'),
+          component: () => import('@/views/admin/SettingView.vue'),
         }
       ],
     },
@@ -82,14 +89,14 @@ const router = createRouter({
     {
       path: '/user',
       name: 'user-home',
-      component: () => import('../views/UserHomeView.vue'),
+      component: () => import('@/views/user/UserHomeView.vue'),
       meta: { requiresAuth: true, role: 'user' },
     },
   ],
 })
 
 router.beforeEach((to) => {
-  const hasToken = Boolean(localStorage.getItem('token'))
+  const hasToken = Boolean(getCookie('token') || localStorage.getItem('token'))
   if (to.meta.requiresAuth && !hasToken) return { name: 'login' }
   if (to.meta.guestOnly && hasToken) return { name: JSON.parse(localStorage.getItem('user') || '{}').role === 'user' ? 'user-home' : 'admin-dashboard' }
   const role = JSON.parse(localStorage.getItem('user') || '{}').role
