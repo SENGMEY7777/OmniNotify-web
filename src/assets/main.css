@@ -1,0 +1,33 @@
+
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap");
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Geist", sans-serif;
+}
+
+body {
+  font-family: "Geist", sans-serif;
+  font-size: 16px;
+}
+
+html, body, #app {
+  min-width: 320px;
+  height: 100%;
+  margin: 0;
+}
+
+html, body {
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+#app { width: 100%; }
+
+@layer base {
+    :root {
+        --primary-color-ttn: #996DFF;
+    }
+}
