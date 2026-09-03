@@ -1,14 +1,18 @@
 <template>
-	<section class="stats-grid" aria-label="Workspace statistics">
-		<article v-for="stat in stats" :key="stat.label" class="stat-card">
-			<div class="stat-icon" :class="stat.tone">
-				<component :is="iconMap[stat.icon]" :size="20" :stroke-width="2" />
-			</div>
-			<p>{{ stat.label }}</p>
-			<strong>{{ stat.value }}</strong>
-			<span :class="stat.changeTone">{{ stat.change }}</span>
-		</article>
-	</section>
+	<div class="row g-3 stats-row" aria-label="Workspace statistics">
+		<div v-for="stat in stats" :key="stat.label" class="col-3">
+			<article class="stat-card">
+				<div class="stat-icon" :class="stat.tone">
+					<component :is="iconMap[stat.icon]" :size="20" :stroke-width="2" />
+				</div>
+				<p class="stat-label">{{ stat.label }}</p>
+				<div class="stat-value-group">
+					<strong class="stat-value">{{ stat.value }}</strong>
+					<span v-if="stat.change" :class="stat.changeTone" class="stat-change">{{ stat.change }}</span>
+				</div>
+			</article>
+		</div>
+	</div>
 </template>
 
 <script setup>
@@ -35,19 +39,26 @@ const iconMap = {
 </script>
 
 <style scoped>
-.stats-grid {
-	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 18px;
-	margin-top: 32px;
+.stats-row {
+	margin-top: 24px;
 }
 
 .stat-card {
 	min-width: 0;
+	height: 150px;
 	padding: 20px;
 	border: 1px solid #e3e5e9;
 	border-radius: 14px;
 	background: #fff;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+	border-color: #cbd5e1;
+	box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
 }
 
 .stat-icon {
@@ -60,24 +71,41 @@ const iconMap = {
 	font-weight: 700;
 }
 
-.stat-card p {
-	margin: 18px 0 0;
+.stat-label {
+	margin: 12px 0 0;
 	color: #697489;
 	font-size: 14px;
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
-.stat-card strong {
-	display: inline-block;
-	margin-top: 8px;
+.stat-value-group {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.stat-value {
 	color: #152033;
 	font-size: 26px;
+	font-weight: 800;
+	line-height: 1;
 }
 
-.stat-card > span {
-	display: inline-block;
-	margin: 8px 0 0 6px;
+.stat-change {
 	font-size: 13px;
-	font-weight: 600;
+	font-weight: 700;
+}
+
+.positive {
+	color: #159570;
+}
+
+.negative {
+	color: #e34c5b;
 }
 
 .purple {
@@ -100,23 +128,17 @@ const iconMap = {
 	background: #fff0f1;
 }
 
-.positive {
-	color: #159570;
-}
-
-.negative {
-	color: #e34c5b;
-}
-
 @media (max-width: 1000px) {
-	.stats-grid {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+	.col-3 {
+		flex: 0 0 50%;
+		max-width: 50%;
 	}
 }
 
 @media (max-width: 600px) {
-	.stats-grid {
-		grid-template-columns: 1fr;
+	.col-3 {
+		flex: 0 0 100%;
+		max-width: 100%;
 	}
 }
 </style>
