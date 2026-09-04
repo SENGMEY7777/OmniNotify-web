@@ -1,28 +1,340 @@
 <template>
-    <section>
-        <h1>Settings</h1>
-        <p class="text-muted">Manage your administrator profile.</p>
-        <p v-if="message" class="alert" :class="ok ? 'alert-success' : 'alert-danger'">{{ message }}</p>
-        <form class="card p-4" @submit.prevent="save"><label class="form-label">Full name<input v-model="form.full_name"
-                    class="form-control" required></label><label class="form-label">Email<input v-model="form.email"
-                    type="email" class="form-control" required></label><label class="form-label">Phone number<input
-                    v-model="form.phone_number" class="form-control"></label><label class="form-label">Gender<select
-                    v-model.number="form.gender" class="form-select">
-                    <option :value="0">Female</option>
-                    <option :value="1">Male</option>
-                </select></label><label class="form-label">Avatar URL<input v-model="form.avatar_url" type="url"
-                    class="form-control"></label>
-            <div><button class="btn btn-primary" :disabled="loading">Save profile</button><button type="button"
-                    class="btn btn-outline-primary ms-2" @click="updateAvatar">Save avatar</button><button type="button"
-                    class="btn btn-outline-danger ms-2" @click="deleteAvatar">Delete avatar</button></div>
-        </form>
-    </section>
+    <div class="settings-view">
+        <div class="header-section mb-4">
+            <h1 class="page-title">Settings</h1>
+            <p class="page-subtitle">Manage your administrator account credentials and public profile.</p>
+        </div>
+
+        <div class="row g-4">
+            <!-- Profile Info Card -->
+            <div class="col-lg-8">
+                <div class="card settings-card p-4">
+                    <h3 class="card-section-title mb-3">Admin Profile</h3>
+
+                    <div v-if="message" class="alert mb-4" :class="ok ? 'alert-success' : 'alert-danger'">
+                        {{ message }}
+                    </div>
+
+                    <form @submit.prevent="save">
+                        <!-- Avatar Section -->
+                        <div class="avatar-setting-section mb-4">
+                            <div class="avatar-preview-box">
+                                <img
+                                    :src="getAvatarUrl(form.avatar_url)"
+                                    alt="Admin Avatar"
+                                    class="avatar-large avatar-img"
+                                    @error="$event.target.src = DEFAULT_AVATAR"
+                                />
+                            </div>
+                            <div class="avatar-inputs flex-grow-1">
+                                <label class="form-label fw-bold">Avatar Image URL</label>
+                                <div class="input-group">
+                                    <input
+                                        v-model="form.avatar_url"
+                                        type="url"
+                                        class="form-control"
+                                        placeholder="https://res.cloudinary.com/... or image link"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-primary"
+                                        :disabled="avatarLoading || !form.avatar_url"
+                                        @click="updateAvatar"
+                                    >
+                                        <span v-if="avatarLoading" class="spinner-border spinner-border-sm me-1"></span>
+                                        Save Avatar
+                                    </button>
+                                    <button
+                                        v-if="form.avatar_url"
+                                        type="button"
+                                        class="btn btn-outline-danger"
+                                        :disabled="avatarLoading"
+                                        @click="deleteAvatar"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                                <small class="text-muted mt-1 d-block">
+                                    Paste a direct image URL (PNG, JPG, Cloudinary link).
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="form-divider mb-4"></div>
+
+                        <!-- General Profile Fields -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Full Name <span class="text-danger">*</span></label>
+                                <input
+                                    v-model="form.full_name"
+                                    class="form-control"
+                                    placeholder="Enter your full name"
+                                    required
+                                />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Email Address <span class="text-danger">*</span></label>
+                                <input
+                                    v-model="form.email"
+                                    type="email"
+                                    class="form-control"
+                                    placeholder="admin@omninotify.com"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Phone Number</label>
+                                <input
+                                    v-model="form.phone_number"
+                                    class="form-control"
+                                    placeholder="+855 12 345 678"
+                                />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Gender</label>
+                                <select v-model.number="form.gender" class="form-select">
+                                    <option :value="0">Female</option>
+                                    <option :value="1">Male</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-primary" :disabled="loading">
+                                <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
+                                Save Profile Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Profile Summary Card -->
+            <div class="col-lg-4">
+                <div class="card settings-card p-4 text-center">
+                    <div class="d-flex justify-content-center mb-3">
+                        <img
+                            :src="getAvatarUrl(form.avatar_url)"
+                            alt="Admin Avatar"
+                            class="avatar-preview-side avatar-img"
+                            @error="$event.target.src = DEFAULT_AVATAR"
+                        />
+                    </div>
+                    <h4 class="fw-bold mb-1">{{ form.full_name || 'Admin User' }}</h4>
+                    <p class="text-muted small mb-3">{{ form.email || 'admin@omninotify.com' }}</p>
+                    <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill fw-bold">
+                        ADMINISTRATOR
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
 </template>
+
 <script setup>
-import { onMounted, ref } from 'vue'; import { get, put, del } from '@/services/api'
-const form = ref({ full_name: '', email: '', phone_number: '', gender: 0, avatar_url: '' }), loading = ref(false), message = ref(''), ok = ref(false)
-onMounted(async () => { try { Object.assign(form.value, await get('/auth/admin/profile')) } catch (e) { message.value = e.message } })
-async function save() { loading.value = true; try { Object.assign(form.value, await put('/auth/admin/profile/update-profile', form.value)); message.value = 'Profile updated'; ok.value = true; localStorage.setItem('user', JSON.stringify(form.value)) } catch (e) { message.value = e.message; ok.value = false } finally { loading.value = false } }
-async function updateAvatar() { try { await put('/auth/admin/profile/update-avatar', { avatar_url: form.value.avatar_url }); message.value = 'Avatar updated'; ok.value = true } catch (e) { message.value = e.message; ok.value = false } }
-async function deleteAvatar() { try { await del('/auth/admin/profile/delete-avatar'); message.value = 'Avatar deleted'; ok.value = true } catch (e) { message.value = e.message; ok.value = false } }
+import { computed, onMounted, ref } from 'vue'
+import { get, put, del } from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import { getAvatarUrl, DEFAULT_AVATAR } from '@/utils/avatar'
+
+const authStore = useAuthStore()
+const toast = useToastStore()
+
+const form = ref({
+    full_name: '',
+    email: '',
+    phone_number: '',
+    gender: 0,
+    avatar_url: '',
+})
+
+const loading = ref(false)
+const avatarLoading = ref(false)
+const message = ref('')
+const ok = ref(false)
+
+const userInitial = computed(() => {
+    return (form.value.full_name?.[0] || authStore.user?.full_name?.[0] || 'A').toUpperCase()
+})
+
+function onAvatarImgError() {
+    // If image fails to load, do nothing destructive
+}
+
+async function loadProfile() {
+    try {
+        const res = await get('/auth/admin/profile')
+        const data = res?.data || res || {}
+        Object.assign(form.value, data)
+        authStore.updateUser(data)
+    } catch (e) {
+        message.value = e.message || 'Failed to load profile'
+    }
+}
+
+onMounted(loadProfile)
+
+async function save() {
+    loading.value = true
+    message.value = ''
+    try {
+        const res = await put('/auth/admin/profile/update-profile', form.value)
+        const updated = res?.data || res || form.value
+        Object.assign(form.value, updated)
+        authStore.updateUser(form.value)
+        message.value = 'Admin profile updated successfully'
+        ok.value = true
+        toast.success('Admin profile updated successfully!')
+    } catch (e) {
+        message.value = e.message || 'Failed to update profile'
+        ok.value = false
+        toast.error(message.value)
+    } finally {
+        loading.value = false
+    }
+}
+
+async function updateAvatar() {
+    avatarLoading.value = true
+    message.value = ''
+    try {
+        const res = await put('/auth/admin/profile/update-avatar', { avatar_url: form.value.avatar_url })
+        const data = res?.data || res || {}
+        const newAvatarUrl = data.avatar_url || form.value.avatar_url
+        form.value.avatar_url = newAvatarUrl
+        authStore.updateUser({ ...data, avatar_url: newAvatarUrl })
+        message.value = 'Admin avatar updated successfully'
+        ok.value = true
+        toast.success('Admin avatar updated successfully!')
+    } catch (e) {
+        message.value = e.message || 'Failed to update avatar'
+        ok.value = false
+        toast.error(message.value)
+    } finally {
+        avatarLoading.value = false
+    }
+}
+
+async function deleteAvatar() {
+    avatarLoading.value = true
+    message.value = ''
+    try {
+        await del('/auth/admin/profile/delete-avatar')
+        form.value.avatar_url = ''
+        authStore.updateUser({ avatar_url: '' })
+        message.value = 'Admin avatar deleted successfully'
+        ok.value = true
+        toast.success('Admin avatar deleted successfully!')
+    } catch (e) {
+        message.value = e.message || 'Failed to delete avatar'
+        ok.value = false
+        toast.error(message.value)
+    } finally {
+        avatarLoading.value = false
+    }
+}
 </script>
+
+<style scoped>
+.settings-view {
+    padding: 0 4px;
+}
+
+.page-title {
+    font-size: 26px;
+    font-weight: 800;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+.page-subtitle {
+    font-size: 14px;
+    color: #64748b;
+    margin-bottom: 0;
+}
+
+.settings-card {
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.card-section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.form-divider {
+    height: 1px;
+    background: #e2e8f0;
+}
+
+.avatar-setting-section {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.avatar-large {
+    width: 76px;
+    height: 76px;
+    border-radius: 20px;
+    display: grid;
+    place-items: center;
+    font-size: 28px;
+    font-weight: 800;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.avatar-preview-side {
+    width: 90px;
+    height: 90px;
+    border-radius: 24px;
+    display: grid;
+    place-items: center;
+    font-size: 34px;
+    font-weight: 800;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.avatar-initials {
+    color: #ffffff;
+    background: linear-gradient(135deg, #c48b71 0%, #a86c55 46%, #283040 47%, #1e2533 100%);
+}
+
+.avatar-img {
+    object-fit: cover;
+    background: #f1f5f9;
+}
+
+/* Dark theme overrides */
+:global([data-theme="dark"] .page-title) {
+    color: #f8fafc;
+}
+
+:global([data-theme="dark"] .page-subtitle) {
+    color: #94a3b8;
+}
+
+:global([data-theme="dark"] .settings-card) {
+    background: #111827;
+    border-color: #1f293d;
+}
+
+:global([data-theme="dark"] .card-section-title) {
+    color: #f8fafc;
+}
+
+:global([data-theme="dark"] .form-divider) {
+    background: #1f293d;
+}
+</style>
