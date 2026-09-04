@@ -13,6 +13,7 @@
     "bootstrap": "^5.3.8",
     "joi": "^18.2.8",
     "pinia": "^4.0.2",
+    "socket.io-client": "^4.8.3",
     "vue": "^3.5.40",
     "vue-router": "^5.2.0"
   },
