@@ -4,12 +4,7 @@
     title="Sign in to your workspace"
     subtitle="Enter your details to continue."
   >
-    <div class="mode-switch" role="tablist" aria-label="Authentication mode">
-      <button type="button" class="active">Log in</button>
-      <button type="button" @click="$router.push({ name: 'register' })">Register</button>
-    </div>
-
-    <form @submit.prevent="submit">
+    <form novalidate @submit.prevent="submit">
       <label>
         Account type
         <select v-model="accountType">
@@ -24,20 +19,31 @@
           v-model.trim="email"
           type="email"
           autocomplete="email"
-          placeholder="you@example.com"
+          placeholder="johndoe@gmail.com"
           required
         />
       </label>
 
       <label>
         Password
-        <input
-          v-model="password"
-          type="password"
-          autocomplete="current-password"
-          placeholder="••••••••••••"
-          required
-        />
+        <div class="password-input-wrap">
+          <input
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'"
+            autocomplete="current-password"
+            placeholder="Enter your password"
+            required
+          />
+          <button
+            type="button"
+            class="toggle-password-btn"
+            :aria-label="showPassword ? 'Hide password' : 'Show password'"
+            @click="showPassword = !showPassword"
+          >
+            <IconEye v-if="!showPassword" :size="18" />
+            <IconEyeOff v-else :size="18" />
+          </button>
+        </div>
       </label>
 
       <RouterLink :to="{ name: 'forgot' }" class="forgot-link">
@@ -48,8 +54,9 @@
       <p v-if="success" class="form-message success">{{ success }}</p>
 
       <button class="submit-button" type="submit" :disabled="loading">
-        {{ loading ? 'Please wait…' : 'Continue' }}
-        <span>→</span>
+        <span v-if="loading" class="btn-spinner" aria-hidden="true"></span>
+        <span>{{ loading ? 'Signing in…' : 'Continue' }}</span>
+        <span v-if="!loading">→</span>
       </button>
     </form>
 
@@ -63,16 +70,20 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { IconEye, IconEyeOff } from '@tabler/icons-vue'
 import AuthLayout from '@/components/layout/AuthLayout.vue'
 import { apiRequest } from '@/services/api'
 import { loginSchema, validate } from '@/utils/validation'
 import { setCookie } from '@/utils/cookies'
+import { useToastStore } from '@/stores/toast'
 
 const router = useRouter()
+const toast = useToastStore()
 
 const accountType = ref('admin')
 const email = ref('')
 const password = ref('')
+const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
@@ -90,6 +101,7 @@ async function submit() {
 
   if (validationError) {
     error.value = validationError
+    toast.error(validationError, 'Validation Error')
     return
   }
 
@@ -113,9 +125,12 @@ async function submit() {
       localStorage.setItem('token', data.token)
     }
     localStorage.setItem('user', JSON.stringify(data.user || {}))
+    success.value = 'Welcome back! You’re now securely signed in.'
+    toast.success('Welcome back! You’re now securely signed in.', 'Login successful!')
     await router.push({ name: isAdmin ? 'admin-dashboard' : 'user-home' })
   } catch (err) {
     error.value = err.message
+    toast.error(err.message, 'Login Failed')
   } finally {
     loading.value = false
   }
@@ -123,35 +138,10 @@ async function submit() {
 </script>
 
 <style scoped>
-.mode-switch {
-  display: flex;
-  gap: 4px;
-  margin: 32px 0 26px;
-  padding: 4px;
-  border-radius: 10px;
-  background: #f4f3f8;
-}
-
-.mode-switch button {
-  flex: 1;
-  padding: 11px;
-  border: 0;
-  border-radius: 7px;
-  color: #7d8495;
-  background: transparent;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.mode-switch button.active {
-  color: #5330c4;
-  background: #fff;
-  box-shadow: 0 2px 9px #2d1d6614;
-}
-
 form {
   display: grid;
   gap: 16px;
+  margin-top: 24px;
 }
 
 label {
@@ -178,6 +168,38 @@ input:focus,
 select:focus {
   border-color: #8455ec;
   box-shadow: 0 0 0 4px #8455ec18;
+}
+
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-input-wrap input {
+  padding-right: 44px;
+}
+
+.toggle-password-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  color: #858c9d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.toggle-password-btn:hover {
+  color: #5330c4;
 }
 
 .forgot-link {
@@ -232,8 +254,24 @@ select:focus {
 }
 
 .submit-button span {
-  font-size: 20px;
-  line-height: 0;
+  font-size: 15px;
+}
+
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .switch-copy {

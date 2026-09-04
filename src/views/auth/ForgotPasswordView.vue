@@ -4,28 +4,29 @@
     title="Forgot your password?"
     subtitle="Enter your email to receive a password reset code."
   >
-    <form @submit.prevent="sendOtp">
+    <form novalidate @submit.prevent="sendOtp">
       <label>
         Email address
         <input
           v-model.trim="email"
           type="email"
           autocomplete="email"
-          placeholder="you@example.com"
+          placeholder="johndoe@gmail.com"
           required
         />
       </label>
 
       <p class="hint">
-        We will send a 6-digit verification code to this email address.
+        We will send a 6-character verification code to this email address.
       </p>
 
       <p v-if="error" class="form-message error">{{ error }}</p>
       <p v-if="success" class="form-message success">{{ success }}</p>
 
       <button class="submit-button" type="submit" :disabled="loading">
-        {{ loading ? 'Sending code…' : 'Send reset code' }}
-        <span>→</span>
+        <span v-if="loading" class="btn-spinner" aria-hidden="true"></span>
+        <span>{{ loading ? 'Sending code…' : 'Send reset code' }}</span>
+        <span v-if="!loading">→</span>
       </button>
     </form>
 
@@ -42,8 +43,11 @@ import { useRouter } from 'vue-router'
 import AuthLayout from '@/components/layout/AuthLayout.vue'
 import { apiRequest } from '@/services/api'
 import { forgotPasswordSchema, validate } from '@/utils/validation'
+import { useToastStore } from '@/stores/toast'
 
 const router = useRouter()
+const toast = useToastStore()
+
 const email = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -60,6 +64,7 @@ async function sendOtp() {
 
   if (validationError) {
     error.value = validationError
+    toast.error(validationError, 'Validation Error')
     return
   }
 
@@ -71,6 +76,7 @@ async function sendOtp() {
       body: JSON.stringify({ email: email.value }),
     })
     success.value = 'Reset code sent! Redirecting to password reset…'
+    toast.success('A 6-character reset code has been sent to your email.', 'Code Sent')
     setTimeout(() => {
       router.push({
         name: 'reset-password',
@@ -79,6 +85,7 @@ async function sendOtp() {
     }, 1200)
   } catch (err) {
     error.value = err.message
+    toast.error(err.message, 'Failed to Send Code')
   } finally {
     loading.value = false
   }
@@ -161,8 +168,24 @@ input:focus {
 }
 
 .submit-button span {
-  font-size: 20px;
-  line-height: 0;
+  font-size: 15px;
+}
+
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .switch-copy {

@@ -4,14 +4,14 @@
     title="Set new password"
     subtitle="Enter your verification code and choose a new password."
   >
-    <form @submit.prevent="resetPassword">
+    <form novalidate @submit.prevent="resetPassword">
       <label>
         Email address
         <input
           v-model.trim="form.email"
           type="email"
           autocomplete="email"
-          placeholder="you@example.com"
+          placeholder="johndoe@gmail.com"
           required
         />
       </label>
@@ -21,40 +21,63 @@
         <input
           v-model.trim="form.otp"
           type="text"
-          inputmode="numeric"
-          placeholder="6-digit code"
+          placeholder="Pe6F6G"
+          maxlength="6"
           required
         />
       </label>
 
       <label>
         New password
-        <input
-          v-model="form.new_password"
-          type="password"
-          autocomplete="new-password"
-          placeholder="••••••••••••"
-          required
-        />
+        <div class="password-input-wrap">
+          <input
+            v-model="form.new_password"
+            :type="showNewPassword ? 'text' : 'password'"
+            autocomplete="new-password"
+            placeholder="Enter your password"
+            required
+          />
+          <button
+            type="button"
+            class="toggle-password-btn"
+            :aria-label="showNewPassword ? 'Hide password' : 'Show password'"
+            @click="showNewPassword = !showNewPassword"
+          >
+            <IconEye v-if="!showNewPassword" :size="18" />
+            <IconEyeOff v-else :size="18" />
+          </button>
+        </div>
       </label>
 
       <label>
         Confirm password
-        <input
-          v-model="form.confirm_password"
-          type="password"
-          autocomplete="new-password"
-          placeholder="••••••••••••"
-          required
-        />
+        <div class="password-input-wrap">
+          <input
+            v-model="form.confirm_password"
+            :type="showConfirmPassword ? 'text' : 'password'"
+            autocomplete="new-password"
+            placeholder="Confirm your password"
+            required
+          />
+          <button
+            type="button"
+            class="toggle-password-btn"
+            :aria-label="showConfirmPassword ? 'Hide password' : 'Show password'"
+            @click="showConfirmPassword = !showConfirmPassword"
+          >
+            <IconEye v-if="!showConfirmPassword" :size="18" />
+            <IconEyeOff v-else :size="18" />
+          </button>
+        </div>
       </label>
 
       <p v-if="error" class="form-message error">{{ error }}</p>
       <p v-if="success" class="form-message success">{{ success }}</p>
 
       <button class="submit-button" type="submit" :disabled="loading">
-        {{ loading ? 'Updating password…' : 'Reset password' }}
-        <span>→</span>
+        <span v-if="loading" class="btn-spinner" aria-hidden="true"></span>
+        <span>{{ loading ? 'Updating password…' : 'Reset password' }}</span>
+        <span v-if="!loading">→</span>
       </button>
     </form>
 
@@ -68,16 +91,21 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { IconEye, IconEyeOff } from '@tabler/icons-vue'
 import AuthLayout from '@/components/layout/AuthLayout.vue'
 import { apiRequest } from '@/services/api'
 import { resetPasswordSchema, validate } from '@/utils/validation'
+import { useToastStore } from '@/stores/toast'
 
 const route = useRoute()
 const router = useRouter()
+const toast = useToastStore()
 
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
+const showNewPassword = ref(false)
+const showConfirmPassword = ref(false)
 const form = ref({
   email: '',
   otp: '',
@@ -105,6 +133,7 @@ async function resetPassword() {
 
   if (validationError) {
     error.value = validationError
+    toast.error(validationError, 'Validation Error')
     return
   }
 
@@ -130,11 +159,13 @@ async function resetPassword() {
     })
 
     success.value = 'Password reset successfully! Redirecting to login…'
+    toast.success('Your password has been reset successfully.', 'Password Changed')
     setTimeout(() => {
       router.push({ name: 'login' })
     }, 1500)
   } catch (err) {
     error.value = err.message
+    toast.error(err.message, 'Reset Failed')
   } finally {
     loading.value = false
   }
@@ -170,6 +201,38 @@ input {
 input:focus {
   border-color: #8455ec;
   box-shadow: 0 0 0 4px #8455ec18;
+}
+
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-input-wrap input {
+  padding-right: 44px;
+}
+
+.toggle-password-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  color: #858c9d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.toggle-password-btn:hover {
+  color: #5330c4;
 }
 
 .form-message {
@@ -211,8 +274,24 @@ input:focus {
 }
 
 .submit-button span {
-  font-size: 20px;
-  line-height: 0;
+  font-size: 15px;
+}
+
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .switch-copy {
