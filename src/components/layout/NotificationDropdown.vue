@@ -97,9 +97,12 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
-  IconSend,
-  IconAlertTriangle,
-  IconShoppingBag,
+  IconArrowsExchange,
+  IconBuildingBank,
+  IconCreditCard,
+  IconShieldLock,
+  IconAlertCircle,
+  IconBell,
   IconSparkles,
   IconAdjustmentsHorizontal,
   IconMessageDots,
@@ -129,46 +132,46 @@ const defaultSamples = [
   {
     id: 'sample-1',
     type: 'transfer',
-    channel: 'PUSH',
-    title: 'Money sent successfully',
+    channel: 'TELEGRAM',
+    title: 'Telegram Alert: Money transferred',
     description: 'Your transfer of $1,250 to Alex Morgan has been completed.',
     time: '5m ago',
     read: false,
-    tone: 'orange',
-    iconComponent: IconSend,
+    tone: 'purple',
+    iconComponent: IconBrandTelegram,
   },
   {
     id: 'sample-2',
-    type: 'budget',
+    type: 'sms',
     channel: 'SMS',
-    title: 'Budget limit almost reached',
-    description: "You've used 85% of your Food & Dining budget this month.",
+    title: 'SMS OTP Code',
+    description: 'Your verification code is 849201. Valid for 5 minutes.',
     time: '10m ago',
     read: true,
-    tone: 'red',
-    iconComponent: IconAlertTriangle,
+    tone: 'orange',
+    iconComponent: IconMessageDots,
   },
   {
     id: 'sample-3',
-    type: 'payment',
-    channel: 'IN_APP',
-    title: 'Payment received',
-    description: 'You received $2,400 from Company Payroll.',
+    type: 'email',
+    channel: 'EMAIL',
+    title: 'Email Statement Ready',
+    description: 'Your monthly banking account statement for August is now available.',
     time: '25m ago',
     read: true,
-    tone: 'green',
-    iconComponent: IconShoppingBag,
+    tone: 'blue',
+    iconComponent: IconMail,
   },
   {
     id: 'sample-4',
-    type: 'savings',
-    channel: 'TELEGRAM',
-    title: 'Savings goal updated',
-    description: 'Your savings balance increased by $520',
+    type: 'push',
+    channel: 'PUSH',
+    title: 'Push Notification: Security alert',
+    description: 'New login detected from Chrome on macOS.',
     time: '1h ago',
     read: false,
     tone: 'purple',
-    iconComponent: IconSparkles,
+    iconComponent: IconBell,
   },
 ]
 
@@ -193,28 +196,52 @@ function formatTimeAgo(dateString) {
 }
 
 function resolveNotificationStyle(item) {
-  const channel = String(item.channel || '').toUpperCase()
-  const text = `${item.title || ''} ${item.body || item.message || ''} ${item.event_type || ''}`.toLowerCase()
+  const channel = String(item.channel || '').toUpperCase().trim().replace('-', '_')
+  const eventType = String(item.event_type || '').toUpperCase().trim()
+  const text = `${item.title || ''} ${item.body || item.message || ''} ${eventType}`.toLowerCase()
 
-  if (channel === 'SMS' || text.includes('sms') || text.includes('otp') || text.includes('verification')) {
-    return { tone: 'orange', iconComponent: IconMessageDots }
-  }
+  // 1. Prioritize Channel-based Icons
   if (channel === 'TELEGRAM' || text.includes('telegram')) {
     return { tone: 'purple', iconComponent: IconBrandTelegram }
   }
+
+  if (channel === 'SMS' || text.includes('sms')) {
+    return { tone: 'orange', iconComponent: IconMessageDots }
+  }
+
   if (channel === 'EMAIL' || text.includes('email') || text.includes('mail')) {
     return { tone: 'blue', iconComponent: IconMail }
   }
-  if (text.includes('sent') || text.includes('transfer') || text.includes('send') || text.includes('out')) {
-    return { tone: 'orange', iconComponent: IconSend }
+
+  if (channel === 'PUSH') {
+    return { tone: 'purple', iconComponent: IconBell }
   }
-  if (text.includes('budget') || text.includes('limit') || text.includes('alert') || text.includes('warn') || text.includes('critical')) {
-    return { tone: 'red', iconComponent: IconAlertTriangle }
+
+  if (channel === 'IN_APP') {
+    if (eventType.includes('OTP') || text.includes('otp')) {
+      return { tone: 'blue', iconComponent: IconShieldLock }
+    }
+    if (eventType.includes('ALERT') || eventType.includes('SECURITY') || text.includes('alert')) {
+      return { tone: 'red', iconComponent: IconAlertCircle }
+    }
+    return { tone: 'green', iconComponent: IconArrowsExchange }
   }
-  if (text.includes('received') || text.includes('payment') || text.includes('payroll') || text.includes('deposit') || text.includes('credit')) {
-    return { tone: 'green', iconComponent: IconShoppingBag }
+
+  // 2. Fallbacks if channel is unspecified
+  if (eventType.includes('TRANSFER') || text.includes('transfer') || text.includes('ផ្ទេរ')) {
+    return { tone: 'green', iconComponent: IconArrowsExchange }
   }
-  return { tone: 'purple', iconComponent: IconSparkles }
+  if (eventType.includes('OTP') || text.includes('otp')) {
+    return { tone: 'blue', iconComponent: IconShieldLock }
+  }
+  if (eventType.includes('PAYMENT') || text.includes('payment')) {
+    return { tone: 'green', iconComponent: IconCreditCard }
+  }
+  if (eventType.includes('SECURITY') || eventType.includes('ALERT')) {
+    return { tone: 'red', iconComponent: IconAlertCircle }
+  }
+
+  return { tone: 'purple', iconComponent: IconBell }
 }
 
 async function fetchNotifications() {
