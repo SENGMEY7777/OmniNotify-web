@@ -18,6 +18,12 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('user', JSON.stringify(newUser || {}))
   }
 
+  function updateUser(newUser) {
+    if (!newUser) return
+    user.value = { ...user.value, ...newUser }
+    localStorage.setItem('user', JSON.stringify(user.value))
+  }
+
   function clearAuth() {
     token.value = ''
     user.value = {}
@@ -33,6 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     isUser,
     setAuth,
+    updateUser,
     clearAuth,
   }
 })
