@@ -15,14 +15,7 @@
         <!-- 3 KPI Stat Cards -->
         <BaseStateCard :stats="templateStats" class="mb-4" />
 
-        <!-- Alert Message -->
-        <transition name="fade">
-            <div v-if="message" class="alert custom-alert mb-4" :class="ok ? 'alert-success' : 'alert-danger'" role="alert">
-                <TablerIcon :name="ok ? 'check' : 'alert-circle'" size="18" />
-                <span>{{ message }}</span>
-                <button type="button" class="btn-close ms-auto" aria-label="Close" @click="message = ''"></button>
-            </div>
-        </transition>
+
 
         <!-- New Template Modal -->
         <BaseModal
@@ -39,17 +32,14 @@
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label class="form-label">Event Type <span class="required-star">*</span></label>
-                        <div class="input-with-icon">
-                            <span class="input-icon-left">
-                                <TablerIcon name="tag" size="16" />
-                            </span>
-                            <input
-                                v-model="form.event_type"
-                                class="form-control"
-                                placeholder="e.g. TRANSACTION_ALERT"
-                                required
-                            />
-                        </div>
+                        <select v-model="form.event_type" class="form-select" required>
+                            <option value="">Choose an event type...</option>
+                            <option value="TRANSACTION_DEPOSIT">TRANSACTION_DEPOSIT</option>
+                            <option value="TRANSACTION_TRANSFER">TRANSACTION_TRANSFER</option>
+                            <option value="TRANSACTION_WITHDRAW">TRANSACTION_WITHDRAW</option>
+                            <option value="PAYMENT_BILL">PAYMENT_BILL</option>
+                            <option value="PAYMENT_FAILED">PAYMENT_FAILED</option>
+                        </select>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Default Channel <span class="required-star">*</span></label>
@@ -243,13 +233,13 @@ import BaseStateCard from '@/components/common/BaseStateCard.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import TablerIcon from '@/components/common/TablerIcon.vue'
 import { get, post, put } from '@/services/api'
+import { useToastStore } from '@/stores/toast'
 
+const toast = useToastStore()
 const rows = ref([])
 const loading = ref(false)
 const submitting = ref(false)
 const showForm = ref(false)
-const message = ref('')
-const ok = ref(false)
 
 const filters = ref({
     channel: '',
@@ -362,8 +352,7 @@ async function load() {
         const result = await get('/admin/template/getAll')
         rows.value = result.data || result || []
     } catch (e) {
-        message.value = e.message
-        ok.value = false
+        toast.error(e.message || 'Failed to load templates.')
     } finally {
         loading.value = false
     }
@@ -382,25 +371,21 @@ function resetForm() {
 function saveDraft() {
     try {
         localStorage.setItem('omni_template_draft', JSON.stringify(form.value))
-        message.value = 'Template draft saved successfully!'
-        ok.value = true
+        toast.success('Template draft saved successfully!')
         showForm.value = false
     } catch (_) {}
 }
 
 async function create() {
     submitting.value = true
-    message.value = ''
     try {
         await post('/admin/template/create', form.value)
-        message.value = 'Template created successfully!'
-        ok.value = true
+        toast.success('Template created successfully!')
         showForm.value = false
         resetForm()
         await load()
     } catch (e) {
-        message.value = e.message
-        ok.value = false
+        toast.error(e.message || 'Failed to create template.')
     } finally {
         submitting.value = false
     }
@@ -416,10 +401,10 @@ async function toggle(row) {
 
     try {
         await put(`/admin/template/${row.template_id}`, { is_active: newActive })
+        toast.success(`Template ${newActive ? 'activated' : 'deactivated'} successfully!`)
     } catch (e) {
         row.is_active = prevActive
-        message.value = e.message
-        ok.value = false
+        toast.error(e.message || 'Failed to update template status.')
     } finally {
         row._updating = false
     }
