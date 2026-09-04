@@ -76,9 +76,14 @@ import { apiRequest } from '@/services/api'
 import { loginSchema, validate } from '@/utils/validation'
 import { setCookie } from '@/utils/cookies'
 import { useToastStore } from '@/stores/toast'
+import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/notification'
+import { initSocket } from '@/services/socket'
 
 const router = useRouter()
 const toast = useToastStore()
+const authStore = useAuthStore()
+const notifStore = useNotificationStore()
 
 const accountType = ref('admin')
 const email = ref('')
@@ -125,6 +130,12 @@ async function submit() {
       localStorage.setItem('token', data.token)
     }
     localStorage.setItem('user', JSON.stringify(data.user || {}))
+
+    // Sync Pinia Stores
+    authStore.setAuth(data.token, data.user)
+    initSocket(true)
+    notifStore.startPolling()   // immediate fetch + burst syncs + 6s polling
+
     success.value = 'Welcome back! You’re now securely signed in.'
     toast.success('Welcome back! You’re now securely signed in.', 'Login successful!')
     await router.push({ name: isAdmin ? 'admin-dashboard' : 'user-home' })
