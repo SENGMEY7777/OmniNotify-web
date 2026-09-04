@@ -15,14 +15,6 @@
         <!-- 4 KPI Stat Cards using BaseStateCard -->
         <BaseStateCard :stats="statCards" class="mb-4" />
 
-        <!-- Alert Message -->
-        <transition name="fade">
-            <div v-if="message" class="alert custom-alert mb-4" :class="ok ? 'alert-success' : 'alert-danger'" role="alert">
-                <TablerIcon :name="ok ? 'check' : 'alert-circle'" size="18" />
-                <span>{{ message }}</span>
-                <button type="button" class="btn-close ms-auto" aria-label="Close" @click="message = ''"></button>
-            </div>
-        </transition>
 
         <!-- New Notification Modal -->
         <BaseModal
@@ -80,23 +72,13 @@
                     </div>
                 </div>
 
-                <div class="form-toggle-wrap mb-2">
-                    <label class="form-toggle-switch">
-                        <input type="checkbox" v-model="useTemplate" />
-                        <span class="form-toggle-slider"></span>
-                    </label>
-                    <span class="form-toggle-label" @click="useTemplate = !useTemplate">
-                        Use notification template
-                    </span>
-                </div>
-
                 <div class="modal-dashed-divider"></div>
 
                 <!-- Section 2: Delivery & Channel Details -->
                 <div class="form-section-title">Delivery & Channel Details</div>
 
-                <div v-if="useTemplate" class="mb-3">
-                    <label class="form-label">Select Template</label>
+                <div class="mb-3">
+                    <label class="form-label">Notification Template <span class="required-star">*</span></label>
                     <div class="input-with-icon">
                         <span class="input-icon-left">
                             <TablerIcon name="template" size="18" />
@@ -104,6 +86,7 @@
                         <select
                             v-model="selectedTemplateKey"
                             class="form-select"
+                            required
                             @change="onTemplateSelectChange"
                         >
                             <option value="">Choose an event template...</option>
@@ -114,24 +97,31 @@
                             >
                                 {{ t.event_type }} - {{ t.title_template }}
                             </option>
+                            <option value="custom">-- Custom Template ID (Manual UUID) --</option>
                         </select>
                     </div>
+                </div>
+
+                <div v-if="selectedTemplateKey === 'custom' || !templateList.length" class="mb-3">
+                    <label class="form-label">Template UUID <span class="required-star">*</span></label>
+                    <input
+                        v-model="form.template_id"
+                        class="form-control"
+                        placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
+                        required
+                    />
                 </div>
 
                 <div class="row g-3 mb-1">
                     <div class="col-md-4">
                         <label class="form-label">Event Type <span class="required-star">*</span></label>
-                        <div class="input-with-icon">
-                            <span class="input-icon-left">
-                                <TablerIcon name="tag" size="16" />
-                            </span>
-                            <input
-                                v-model="form.event_type"
-                                class="form-control"
-                                placeholder="e.g. SYSTEM_ALERT"
-                                required
-                            />
-                        </div>
+                        <select v-model="form.event_type" class="form-select" required>
+                            <option value="TRANSACTION_DEPOSIT">TRANSACTION_DEPOSIT</option>
+                            <option value="TRANSACTION_TRANSFER">TRANSACTION_TRANSFER</option>
+                            <option value="TRANSACTION_WITHDRAW">TRANSACTION_WITHDRAW</option>
+                            <option value="PAYMENT_BILL">PAYMENT_BILL</option>
+                            <option value="PAYMENT_FAILED">PAYMENT_FAILED</option>
+                        </select>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Channel <span class="required-star">*</span></label>
@@ -332,7 +322,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import BaseTable from '@/components/common/BaseTable.vue'
 import BasePagination from '@/components/common/BasePagination.vue'
 import BaseStateCard from '@/components/common/BaseStateCard.vue'
@@ -340,14 +330,14 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import TablerIcon from '@/components/common/TablerIcon.vue'
 import { get, post, put } from '@/services/api'
 import { useNotificationStore } from '@/stores/notification'
+import { useToastStore } from '@/stores/toast'
 
 const notifStore = useNotificationStore()
+const toast = useToastStore()
 const rows = ref([])
 const loading = ref(false)
 const submitting = ref(false)
 const showForm = ref(false)
-const message = ref('')
-const ok = ref(false)
 
 const summaryStats = ref({
     total: 0,
@@ -424,7 +414,7 @@ function resetFilters() {
 const form = ref({
     template_id: '',
     user_id: '',
-    event_type: 'SYSTEM_ALERT',
+    event_type: 'TRANSACTION_DEPOSIT',
     title: '',
     body: '',
     channel: 'IN_APP',
@@ -435,25 +425,30 @@ const userList = ref([])
 const templateList = ref([])
 const selectedUserKey = ref('')
 const recipientName = ref('')
-const useTemplate = ref(false)
 const selectedTemplateKey = ref('')
 
 async function fetchDropdownData() {
     try {
         const [usersRes, templatesRes] = await Promise.allSettled([
             get('/auth/admin/getAll'),
-            get('/admin/template')
+            get('/admin/template/getAll')
         ])
-        if (usersRes.status === 'fulfilled') {
+        if (usersRes.status === 'fulfilled' && usersRes.value) {
             const rawUsers = usersRes.value.users || usersRes.value.data || usersRes.value || []
             userList.value = Array.isArray(rawUsers) ? rawUsers : []
         }
-        if (templatesRes.status === 'fulfilled') {
-            const rawTemplates = templatesRes.value.data || templatesRes.value || []
+        if (templatesRes.status === 'fulfilled' && templatesRes.value) {
+            const rawTemplates = templatesRes.value.data || templatesRes.value.templates || templatesRes.value || []
             templateList.value = Array.isArray(rawTemplates) ? rawTemplates : []
         }
     } catch (_) {}
 }
+
+watch(showForm, (isOpen) => {
+    if (isOpen) {
+        fetchDropdownData()
+    }
+})
 
 function onUserSelectChange() {
     if (!selectedUserKey.value || selectedUserKey.value === 'custom') {
@@ -470,12 +465,28 @@ function onUserSelectChange() {
     }
 }
 
+function normalizeEventType(type) {
+    if (!type) return 'TRANSACTION_DEPOSIT'
+    const clean = String(type).trim().toUpperCase()
+    if (clean === 'TRANFER' || clean === 'TRANSFER' || clean === 'TRANSACTION_TRANSFER') return 'TRANSACTION_TRANSFER'
+    if (clean === 'DEPOSIT' || clean === 'TRANSACTION_DEPOSIT') return 'TRANSACTION_DEPOSIT'
+    if (clean === 'WITHDRAW' || clean === 'WITHDRAWAL' || clean === 'TRANSACTION_WITHDRAW') return 'TRANSACTION_WITHDRAW'
+    if (clean === 'BILL' || clean === 'PAYMENT_BILL') return 'PAYMENT_BILL'
+    if (clean === 'FAILED' || clean === 'PAYMENT_FAILED') return 'PAYMENT_FAILED'
+    return clean
+}
+
 function onTemplateSelectChange() {
-    if (!selectedTemplateKey.value) return
-    const found = templateList.value.find(t => (t.template_id || t.id) === selectedTemplateKey.value)
+    if (!selectedTemplateKey.value || selectedTemplateKey.value === 'custom') {
+        if (selectedTemplateKey.value === 'custom') {
+            form.value.template_id = ''
+        }
+        return
+    }
+    const found = templateList.value.find(t => String(t.template_id || t.id) === String(selectedTemplateKey.value))
     if (found) {
         form.value.template_id = found.template_id || found.id || ''
-        if (found.event_type) form.value.event_type = found.event_type
+        form.value.event_type = normalizeEventType(found.event_type)
         if (found.default_channel) form.value.channel = found.default_channel
         if (found.title_template) form.value.title = found.title_template
         if (found.body_template) form.value.body = found.body_template
@@ -486,7 +497,7 @@ function resetForm() {
     form.value = {
         template_id: '',
         user_id: '',
-        event_type: 'SYSTEM_ALERT',
+        event_type: 'TRANSACTION_DEPOSIT',
         title: '',
         body: '',
         channel: 'IN_APP',
@@ -495,7 +506,6 @@ function resetForm() {
     selectedUserKey.value = ''
     recipientName.value = ''
     selectedTemplateKey.value = ''
-    useTemplate.value = false
 }
 
 function saveDraft() {
@@ -504,9 +514,9 @@ function saveDraft() {
             ...form.value,
             recipientName: recipientName.value,
             selectedUserKey: selectedUserKey.value,
+            selectedTemplateKey: selectedTemplateKey.value,
         }))
-        message.value = 'Notification draft saved successfully!'
-        ok.value = true
+        toast.success('Notification draft saved successfully!')
         showForm.value = false
     } catch (_) {}
 }
@@ -553,8 +563,7 @@ async function load(next = 1, currentLimit = pagination.value.limit) {
             pagination.value.total_pages = Math.ceil(rows.value.length / currentLimit) || 1
         }
     } catch (e) {
-        message.value = e.message
-        ok.value = false
+        toast.error(e.message || 'Failed to load notifications.')
     } finally {
         loading.value = false
     }
@@ -570,18 +579,77 @@ function handleLimitChange(newLimit) {
 }
 
 async function create() {
+    let finalTemplateId = form.value.template_id ? form.value.template_id.trim() : ''
+    if (!finalTemplateId && selectedTemplateKey.value && selectedTemplateKey.value !== 'custom') {
+        finalTemplateId = selectedTemplateKey.value
+    }
+    const matchedTemplate = templateList.value.find(t =>
+        String(t.template_id || t.id) === String(finalTemplateId || selectedTemplateKey.value)
+    )
+    if (matchedTemplate) {
+        finalTemplateId = matchedTemplate.template_id || matchedTemplate.id
+    }
+
+    if (!finalTemplateId) {
+        toast.error('Please select a template or enter a Template UUID.')
+        return
+    }
+    if (!form.value.user_id || !form.value.user_id.trim()) {
+        toast.error('Please select a recipient or enter an Email / User ID.')
+        return
+    }
+
     submitting.value = true
-    message.value = ''
     try {
-        await post('/admin/notification', form.value)
-        message.value = 'Notification queued successfully!'
-        ok.value = true
+        let finalUserId = form.value.user_id.trim()
+        const matchedUser = userList.value.find(u =>
+            (u.email && u.email.toLowerCase() === finalUserId.toLowerCase()) ||
+            (u.user_id && String(u.user_id) === String(finalUserId)) ||
+            (u.id && String(u.id) === String(finalUserId))
+        )
+        if (matchedUser) {
+            finalUserId = matchedUser.user_id || matchedUser.id
+        }
+
+        const payload = {
+            template_id: finalTemplateId,
+            user_id: finalUserId,
+            event_type: normalizeEventType(form.value.event_type),
+            title: form.value.title.trim(),
+            body: form.value.body.trim(),
+            channel: form.value.channel,
+            priority: form.value.priority,
+        }
+
+        const result = await post('/admin/notification', payload)
+
+        // Grab the notification data (api.js returns payload.data directly)
+        const notifData = (result && result.notification_id) ? result : (result?.data || null)
+        const notifTitle = notifData?.title || payload.title || '🔔 New Notification'
+        const notifBody = notifData?.body || payload.body || ''
+
+        // ✅ Show popup toast directly — most reliable method
+        toast.addToast({
+            type: 'info',
+            title: notifTitle,
+            message: notifBody,
+            duration: 7000,
+            sound: true,
+        })
+
         showForm.value = false
         resetForm()
         await Promise.all([load(1), fetchStats()])
+
+        // Also dispatch DOM event to update badge & dropdown list
+        if (notifData && notifData.notification_id) {
+            notifStore.incrementUnread(notifData)
+            window.dispatchEvent(new CustomEvent('new-notification', {
+                detail: { ...notifData, _toastShown: true }
+            }))
+        }
     } catch (e) {
-        message.value = e.message
-        ok.value = false
+        toast.error(e.message || 'Failed to send notification.')
     } finally {
         submitting.value = false
     }
@@ -606,11 +674,11 @@ async function toggleStatus(row) {
         window.dispatchEvent(new CustomEvent('notification-status-changed', {
             detail: { id: row.notification_id, status: newStatus }
         }))
+        toast.success(`Notification status updated to ${newStatus}`)
         await fetchStats()
     } catch (e) {
         row.status = oldStatus
-        message.value = e.message
-        ok.value = false
+        toast.error(e.message || 'Failed to update notification status.')
     } finally {
         row._updating = false
     }
