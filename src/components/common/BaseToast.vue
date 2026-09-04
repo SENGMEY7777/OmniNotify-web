@@ -98,10 +98,11 @@ const toastStore = useToastStore()
 </script>
 
 <style scoped>
+/* Positioned below the navbar/profile header (min-height 75px) */
 .toast-viewport {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  top: 86px;
+  right: 24px;
   z-index: 999999;
   pointer-events: none;
   width: min(100% - 40px, 380px);
@@ -178,7 +179,7 @@ const toastStore = useToastStore()
 }
 
 .toast-title {
-  margin: 0 0 3px;
+  margin: 0 0 4px;
   font-size: 14px;
   font-weight: 700;
   color: #1e293b;
@@ -191,6 +192,7 @@ const toastStore = useToastStore()
   color: #64748b;
   line-height: 1.45;
   word-break: break-word;
+  white-space: pre-line;
 }
 
 .toast-close-btn {
@@ -268,5 +270,14 @@ const toastStore = useToastStore()
 .toast-anim-leave-to {
   opacity: 0;
   transform: scale(0.9) translateY(-10px);
+}
+
+@media (max-width: 640px) {
+  .toast-viewport {
+    top: 76px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
 }
 </style>
