@@ -68,10 +68,7 @@ export function initSocket(forceReconnect = false) {
 
     console.log('[Socket.IO] Incoming notification received:', payload)
 
-    // Play chime sound
-    playMessageSound()
-
-    // Show toast popup
+    // Play chime sound and show toast popup
     try {
       const toast = useToastStore()
       toast.addToast({
@@ -79,9 +76,11 @@ export function initSocket(forceReconnect = false) {
         title: payload.title || '🔔 New Notification',
         message: payload.body || payload.message || '',
         duration: 7000,
-        sound: false, // already played above
+        sound: true,
       })
-    } catch (_) {}
+    } catch (_) {
+      playMessageSound()
+    }
 
     // Increment reactive notification store count
     try {
