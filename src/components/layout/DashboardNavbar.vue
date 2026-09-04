@@ -1,21 +1,107 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import TablerIcon from '@/components/common/TablerIcon.vue'
 import NotificationDropdown from './NotificationDropdown.vue'
 import { useNotificationStore } from '@/stores/notification'
+import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import { get } from '@/services/api'
+import { getAvatarUrl, DEFAULT_AVATAR } from '@/utils/avatar'
 import { initTheme, toggleTheme, isDark } from '@/utils/theme'
 import { isSidebarCollapsed, toggleSidebarCollapse, toggleMobileSidebar } from '@/utils/sidebarState'
 
+const router = useRouter()
 const notifStore = useNotificationStore()
+const authStore = useAuthStore()
+const toast = useToastStore()
+
 const showNotifications = ref(false)
+const showProfileMenu = ref(false)
+const profileMenuRef = ref(null)
+
+const userName = computed(() => authStore.user?.full_name || authStore.user?.name || 'Gustavo')
+const userEmail = computed(() => authStore.user?.email || 'admin@omninotify.com')
+const userRole = computed(() => (authStore.user?.role || 'admin').toUpperCase())
+const userInitial = computed(() => (userName.value?.[0] || 'G').toUpperCase())
+const userAvatar = computed(() => getAvatarUrl(authStore.user?.avatar_url || authStore.user?.avatar))
 
 function toggleNotifications() {
 	showNotifications.value = !showNotifications.value
+	if (showNotifications.value) showProfileMenu.value = false
+}
+
+function toggleProfileMenu() {
+	showProfileMenu.value = !showProfileMenu.value
+	if (showProfileMenu.value) showNotifications.value = false
+}
+
+function handleLogout() {
+	showProfileMenu.value = false
+	authStore.clearAuth()
+	router.push('/login')
+}
+
+function handleClickOutside(e) {
+	if (profileMenuRef.value && !profileMenuRef.value.contains(e.target)) {
+		showProfileMenu.value = false
+	}
+}
+
+const seenPopupIds = new Set()
+
+function handleLiveNotification(event) {
+	// Refresh badge count
+	notifStore.fetchNotifications()
+
+	// Only show popup for 'new-notification' events (not status-changed)
+	if (event.type !== 'new-notification') return
+
+	const n = event?.detail
+	if (!n) return
+
+	// If socket.js already showed a toast, skip to avoid duplicate
+	if (n._toastShown) return
+
+	// Deduplicate
+	const id = n.notification_id || n.id || `${n.title}_${n.body}`
+	if (seenPopupIds.has(id)) return
+	seenPopupIds.add(id)
+	setTimeout(() => seenPopupIds.delete(id), 8000)
+
+	// Show the popup toast (for manually dispatched events, e.g. from ManageNotificationView)
+	toast.addToast({
+		type: 'info',
+		title: n.title || '🔔 New Notification',
+		message: n.body || n.message || '',
+		duration: 7000,
+		sound: true,
+	})
+}
+
+async function refreshUserProfile() {
+	if (!authStore.token) return
+	try {
+		const res = await get('/auth/admin/profile')
+		const profile = res?.data || res?.user || res
+		if (profile && (profile.email || profile.user_id || profile.id)) {
+			authStore.updateUser(profile)
+		}
+	} catch (_) {}
 }
 
 onMounted(() => {
 	initTheme()
-	notifStore.fetchNotifications()
+	refreshUserProfile()
+	document.addEventListener('click', handleClickOutside)
+	window.addEventListener('new-notification', handleLiveNotification)
+	window.addEventListener('notification-status-changed', handleLiveNotification)
+})
+
+onBeforeUnmount(() => {
+	document.removeEventListener('click', handleClickOutside)
+	window.removeEventListener('new-notification', handleLiveNotification)
+	window.removeEventListener('notification-status-changed', handleLiveNotification)
 })
 </script>
 
@@ -81,12 +167,54 @@ onMounted(() => {
 				/>
 			</div>
 
-			<div class="profile-info">
-				<button class="profile-button" type="button" aria-label="Open Gustavo's profile menu">
-					<span class="avatar" aria-hidden="true">G</span>
-					<strong class="d-none d-sm-inline">Gustavo</strong>
-					<TablerIcon name="chevron-down" size="18" class="profile-chevron d-none d-sm-inline" />
+			<div class="profile-info" ref="profileMenuRef">
+				<button
+					class="profile-button"
+					:class="{ active: showProfileMenu }"
+					type="button"
+					aria-label="Open profile menu"
+					@click="toggleProfileMenu"
+				>
+					<img :src="userAvatar" alt="User avatar" class="avatar avatar-img" @error="$event.target.src = DEFAULT_AVATAR" />
+					<strong class="d-none d-sm-inline">{{ userName }}</strong>
+					<TablerIcon name="chevron-down" size="18" class="profile-chevron d-none d-sm-inline" :class="{ rotated: showProfileMenu }" />
 				</button>
+
+				<!-- Profile Dropdown Popup -->
+				<transition name="dropdown-anim">
+					<div v-if="showProfileMenu" class="profile-dropdown-menu">
+						<div class="profile-dropdown-header">
+							<img :src="userAvatar" alt="User avatar" class="avatar header-avatar avatar-img" @error="$event.target.src = DEFAULT_AVATAR" />
+							<div class="user-meta">
+								<h5 class="user-fullname">{{ userName }}</h5>
+								<p class="user-email">{{ userEmail }}</p>
+								<span class="user-role-badge">{{ userRole }}</span>
+							</div>
+						</div>
+						<div class="profile-dropdown-divider"></div>
+						<div class="profile-dropdown-body">
+							<RouterLink to="/admin/setting" class="profile-dropdown-item" @click="showProfileMenu = false">
+								<TablerIcon name="settings" size="18" />
+								<span>Settings</span>
+							</RouterLink>
+							<RouterLink to="/admin/manage-user" class="profile-dropdown-item" @click="showProfileMenu = false">
+								<TablerIcon name="users" size="18" />
+								<span>Manage Users</span>
+							</RouterLink>
+							<button type="button" class="profile-dropdown-item" @click="toggleTheme(); showProfileMenu = false">
+								<TablerIcon :name="isDark ? 'sun' : 'moon'" size="18" />
+								<span>{{ isDark ? 'Light Mode' : 'Dark Mode' }}</span>
+							</button>
+						</div>
+						<div class="profile-dropdown-divider"></div>
+						<div class="profile-dropdown-footer">
+							<button type="button" class="profile-dropdown-item logout-item" @click="handleLogout">
+								<TablerIcon name="logout" size="18" />
+								<span>Sign Out</span>
+							</button>
+						</div>
+					</div>
+				</transition>
 			</div>
 
 		</div>
@@ -300,11 +428,11 @@ kbd {
 }
 
 .avatar {
-	width: 38px;
-	height: 38px;
+	width: 40px;
+	height: 40px;
 	display: grid;
 	place-items: center;
-	border-radius: 12px;
+	border-radius: 50%;
 	color: #ffffff;
 	background: linear-gradient(135deg, #c48b71 0%, #a86c55 46%, #283040 47%, #1e2533 100%);
 	font-size: 18px;
@@ -313,14 +441,195 @@ kbd {
 	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
+img.avatar {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	object-fit: cover;
+	background: #f1f5f9;
+	display: block;
+}
+
+.profile-info {
+	position: relative;
+}
+
 .profile-chevron {
 	color: #64748b;
 	margin-left: auto;
 	transition: transform 0.2s ease, color 0.15s ease;
 }
 
+.profile-chevron.rotated {
+	transform: rotate(180deg);
+}
+
 .profile-button:hover .profile-chevron {
 	color: #0f172a;
+}
+
+/* Profile Dropdown Popup */
+.profile-dropdown-menu {
+	position: absolute;
+	top: calc(100% + 10px);
+	right: 0;
+	width: 260px;
+	background: #ffffff;
+	border-radius: 18px;
+	border: 1px solid #eef0f5;
+	box-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.04);
+	padding: 12px;
+	z-index: 9999;
+}
+
+.profile-dropdown-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 10px 12px;
+}
+
+.header-avatar {
+	width: 44px;
+	height: 44px;
+	font-size: 20px;
+	border-radius: 14px;
+}
+
+.user-meta {
+	flex: 1;
+	min-width: 0;
+}
+
+.user-fullname {
+	margin: 0 0 2px;
+	font-size: 15px;
+	font-weight: 700;
+	color: #0f172a;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.user-email {
+	margin: 0 0 4px;
+	font-size: 12px;
+	color: #64748b;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.user-role-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	font-size: 10.5px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	color: #6737d7;
+	background: #ede9fe;
+	border-radius: 6px;
+}
+
+.profile-dropdown-divider {
+	height: 1px;
+	background: #eef0f5;
+	margin: 6px 0;
+}
+
+.profile-dropdown-body,
+.profile-dropdown-footer {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.profile-dropdown-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 12px;
+	border-radius: 10px;
+	font-size: 14px;
+	font-weight: 600;
+	color: #334155;
+	text-decoration: none;
+	background: transparent;
+	border: 0;
+	width: 100%;
+	text-align: left;
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.profile-dropdown-item:hover {
+	background: #f8fafc;
+	color: #6737d7;
+}
+
+.profile-dropdown-item.logout-item {
+	color: #ef4444;
+}
+
+.profile-dropdown-item.logout-item:hover {
+	background: #fef2f2;
+	color: #dc2626;
+}
+
+/* Animations */
+.dropdown-anim-enter-active {
+	transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dropdown-anim-leave-active {
+	transition: all 0.15s ease-in;
+}
+
+.dropdown-anim-enter-from {
+	opacity: 0;
+	transform: translateY(-8px) scale(0.96);
+}
+
+.dropdown-anim-leave-to {
+	opacity: 0;
+	transform: translateY(-4px) scale(0.98);
+}
+
+/* Dark Mode Overrides */
+:global([data-theme="dark"] .profile-dropdown-menu) {
+	background: #111827 !important;
+	border-color: #1f293d !important;
+	box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.5) !important;
+}
+
+:global([data-theme="dark"] .user-fullname) {
+	color: #f8fafc !important;
+}
+
+:global([data-theme="dark"] .user-email) {
+	color: #94a3b8 !important;
+}
+
+:global([data-theme="dark"] .profile-dropdown-divider) {
+	background: #1f293d !important;
+}
+
+:global([data-theme="dark"] .profile-dropdown-item) {
+	color: #cbd5e1 !important;
+}
+
+:global([data-theme="dark"] .profile-dropdown-item:hover) {
+	background: #1a2234 !important;
+	color: #c084fc !important;
+}
+
+:global([data-theme="dark"] .profile-dropdown-item.logout-item) {
+	color: #f87171 !important;
+}
+
+:global([data-theme="dark"] .profile-dropdown-item.logout-item:hover) {
+	background: #450a0a !important;
+	color: #fca5a5 !important;
 }
 
 
