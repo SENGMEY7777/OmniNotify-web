@@ -10,14 +10,14 @@ export const PATTERNS = {
   // Strong password: min 8 chars, at least 1 uppercase, 1 lowercase, 1 digit, 1 special character
   PASSWORD: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&^#()_+=\-[\]{}|;:'",.<>/?~`]).{8,64}$/,
 
-  // Phone number (Cambodia or international E.164 format)
-  PHONE: /^(?:\+?855|0)[1-9]\d{7,8}$|^(\+?[0-9]{8,15})$/,
+  // Phone number (Cambodia 01x / +855 or international format)
+  PHONE: /^(?:\+?855[\s-]?)?[0-9\s-]{7,12}$|^(?:0[1-9][0-9\s-]{6,9})$|^(\+?[0-9]{8,15})$/,
 
   // Full name (Latin and Khmer unicode letters with spaces, dots, hyphens)
   FULL_NAME: /^[a-zA-Z\u1780-\u17FF\s'.\-]{2,60}$/,
 
-  // 6-digit verification OTP
-  OTP: /^\d{6}$/,
+  // 6-character alphanumeric verification OTP (e.g. Pe6F6G)
+  OTP: /^[a-zA-Z0-9]{6}$/,
 }
 
 /**
@@ -66,7 +66,7 @@ export const registerSchema = Joi.object({
     .required()
     .messages({
       'string.empty': 'Phone number is required.',
-      'string.pattern.base': 'Please enter a valid phone number (e.g. 012 345 678 or +855...).',
+      'string.pattern.base': 'Please enter a valid phone number (e.g. 012 345 678).',
       'any.required': 'Phone number is required.',
     }),
   email: Joi.string()
@@ -122,7 +122,7 @@ export const resetPasswordSchema = Joi.object({
     .required()
     .messages({
       'string.empty': 'Verification code is required.',
-      'string.pattern.base': 'Verification code must be exactly 6 digits.',
+      'string.pattern.base': 'Verification code must be exactly 6 characters.',
       'any.required': 'Verification code is required.',
     }),
   new_password: Joi.string()
