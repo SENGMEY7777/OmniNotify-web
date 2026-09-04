@@ -81,11 +81,18 @@
                             <template #cell-priority="{ value }">
                                 <span class="priority-badge" :class="value ? value.toLowerCase() : ''">{{ value }}</span>
                             </template>
-                            <template #cell-status="{ value }">
-                                <span class="status-badge" :class="value ? value.toLowerCase() : ''">
-                                    <span class="status-dot"></span>
-                                    {{ value }}
-                                </span>
+                            <template #cell-status="{ row, value }">
+                                <button
+                                    type="button"
+                                    class="status-badge-btn"
+                                    :title="'Click to mark as ' + (value === 'READ' ? 'DELIVERED' : 'READ')"
+                                    @click.stop="handleRowStatusToggle(row)"
+                                >
+                                    <span class="status-badge" :class="value ? value.toLowerCase() : ''">
+                                        <span class="status-dot"></span>
+                                        {{ value }}
+                                    </span>
+                                </button>
                             </template>
                             <template #cell-timestamp="{ value }">
                                 <span class="timestamp-text">{{ value }}</span>
@@ -113,8 +120,8 @@ import BaseStateCard from '@/components/common/BaseStateCard.vue'
 import DeliveryPerformanceImage from '@/components/dashboard/DeliveryPerformanceImage.vue'
 import CalendarDate from '@/components/dashboard/CalendarDate.vue'
 import DeliveryChannelChart from '@/components/dashboard/DeliveryChannelChart.vue'
-import { get } from '@/services/api'
-import { onMounted, ref } from 'vue'
+import { get, put } from '@/services/api'
+import { onMounted, onUnmounted, ref } from 'vue'
 
 const days = ref(7)
 const loading = ref(false)
@@ -188,7 +195,7 @@ async function loadDashboard() {
 
         const [dashboard, notifications, channelStats, users] = await Promise.all([
             get(dashboardUrl),
-            get('/admin/notification?page=1&limit=5'),
+            get('/admin/notification?page=1&limit=8'),
             get('/admin/notification/stats'),
             get('/auth/admin/getAll')
         ])
@@ -228,6 +235,7 @@ async function loadDashboard() {
             }[item.channel.toLowerCase()] || '#8751ff')
         }))
         activityRows.value = (notifications.data || []).map((item) => ({
+            id: item.notification_id || item.id,
             event: item.title,
             event_type: item.event_type,
             channel: item.channel,
@@ -241,10 +249,77 @@ async function loadDashboard() {
         loading.value = false
     }
 }
-onMounted(loadDashboard)
+
+async function handleRowStatusToggle(row) {
+    if (!row || !row.id) return
+    const newStatus = row.status === 'READ' ? 'DELIVERED' : 'READ'
+    row.status = newStatus
+
+    try {
+        await put(`/admin/notification/${row.id}`, { status: newStatus })
+        window.dispatchEvent(new CustomEvent('notification-status-changed', {
+            detail: { id: row.id, status: newStatus }
+        }))
+    } catch (err) {
+        console.warn('Failed to update notification status:', err.message)
+    }
+}
+
+function handleLiveNotification(event) {
+    const item = event.detail
+    if (!item) return
+
+    const newRow = {
+        id: item.notification_id || item.id,
+        event: item.title || 'New Alert',
+        event_type: item.event_type || 'SYSTEM_ALERT',
+        channel: item.channel || 'IN_APP',
+        priority: item.priority || 'HIGH',
+        status: item.status || 'DELIVERED',
+        timestamp: new Date().toLocaleString()
+    }
+
+    const existingIdx = activityRows.value.findIndex(r => r.id === newRow.id)
+    if (existingIdx !== -1) {
+        activityRows.value[existingIdx] = newRow
+    } else {
+        activityRows.value.unshift(newRow)
+        if (activityRows.value.length > 8) {
+            activityRows.value.pop()
+        }
+    }
+
+    // Dynamically increment total count without page refresh
+    const curTotal = parseInt(String(stats.value[0].value).replace(/,/g, '')) || 0
+    stats.value[0].value = formatNumber(curTotal + 1)
+}
+
+onMounted(() => {
+    loadDashboard()
+    window.addEventListener('new-notification', handleLiveNotification)
+})
+
+onUnmounted(() => {
+    window.removeEventListener('new-notification', handleLiveNotification)
+})
 </script>
 
 <style scoped>
+
+.status-badge-btn {
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.status-badge-btn:hover {
+    transform: scale(1.05);
+    opacity: 0.9;
+}
 
 .delivery-title {
     font-size: 20px !important;
@@ -288,6 +363,13 @@ onMounted(loadDashboard)
 .event-title {
     font-weight: 500;
     color: #152033;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.recipient-name {
+    font-weight: 500;
+    color: #334155;
     font-size: 14px;
     white-space: nowrap;
 }
