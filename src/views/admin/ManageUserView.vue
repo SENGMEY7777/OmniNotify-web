@@ -63,9 +63,12 @@
                     <!-- User Name Slot -->
                     <template #cell-full_name="{ value, row }">
                         <div class="user-cell d-flex align-items-center gap-2">
-                            <div class="user-avatar-circle">
-                                {{ (value || 'U').charAt(0).toUpperCase() }}
-                            </div>
+                            <img
+                                :src="getAvatarUrl(row.avatar_url)"
+                                :alt="value || 'User'"
+                                class="user-avatar-circle avatar-img"
+                                @error="$event.target.src = DEFAULT_AVATAR"
+                            />
                             <div class="user-info">
                                 <span class="user-name">{{ value || 'Unnamed User' }}</span>
                             </div>
@@ -125,6 +128,7 @@ import BasePagination from '@/components/common/BasePagination.vue'
 import BaseStateCard from '@/components/common/BaseStateCard.vue'
 import TablerIcon from '@/components/common/TablerIcon.vue'
 import { get } from '@/services/api'
+import { getAvatarUrl, DEFAULT_AVATAR } from '@/utils/avatar'
 
 const loading = ref(false)
 const error = ref('')
@@ -223,7 +227,8 @@ async function loadUsers() {
         const rawList = result.users || result.data || result || []
         allUsers.value = rawList.map(u => ({
             ...u,
-            status: (u.status === true || u.status === 'Active' || u.is_active === true) ? 'Active' : 'Inactive',
+            avatar_url: u.avatar_url || u.avatar || null,
+            status: (u.status === true || u.status === 'Active' || u.is_active === true || u.status === 1 || u.is_active === 1) ? 'Active' : 'Inactive',
             created_at: u.created_at ? new Date(u.created_at).toLocaleDateString() : '—',
         }))
         pagination.value.total = allUsers.value.length
@@ -307,6 +312,7 @@ onMounted(loadUsers)
     font-weight: 600;
     color: #152033;
     font-size: 14.5px;
+    gap: 10px !important;
 }
 
 .user-avatar-circle {
@@ -320,6 +326,15 @@ onMounted(loadUsers)
     display: grid;
     place-items: center;
     flex-shrink: 0;
+}
+
+img.user-avatar-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #f1f5f9;
+    display: block;
 }
 
 .user-name {
