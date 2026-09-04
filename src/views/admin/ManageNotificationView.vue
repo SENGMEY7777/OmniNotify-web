@@ -435,7 +435,9 @@ async function fetchDropdownData() {
         ])
         if (usersRes.status === 'fulfilled' && usersRes.value) {
             const rawUsers = usersRes.value.users || usersRes.value.data || usersRes.value || []
-            userList.value = Array.isArray(rawUsers) ? rawUsers : []
+            userList.value = Array.isArray(rawUsers)
+                ? rawUsers.filter(u => (u.role || '').toLowerCase() !== 'admin' && (u.role || '').toLowerCase() !== 'superadmin')
+                : []
         }
         if (templatesRes.status === 'fulfilled' && templatesRes.value) {
             const rawTemplates = templatesRes.value.data || templatesRes.value.templates || templatesRes.value || []
