@@ -225,7 +225,10 @@ async function loadUsers() {
     try {
         const result = await get('/auth/admin/getAll')
         const rawList = result.users || result.data || result || []
-        allUsers.value = rawList.map(u => ({
+        const userOnlyList = Array.isArray(rawList)
+            ? rawList.filter(u => (u.role || '').toLowerCase() !== 'admin' && (u.role || '').toLowerCase() !== 'superadmin')
+            : []
+        allUsers.value = userOnlyList.map(u => ({
             ...u,
             avatar_url: u.avatar_url || u.avatar || null,
             status: (u.status === true || u.status === 'Active' || u.is_active === true || u.status === 1 || u.is_active === 1) ? 'Active' : 'Inactive',
