@@ -136,14 +136,14 @@ const slices = computed(() => {
     width: 100%;
     display: grid;
     justify-items: center;
-    gap: 18px;
-    margin-top: 20px;
+    gap: 20px;
+    margin-top: 16px;
 }
 
 .donut-container {
     position: relative;
     width: 100%;
-    max-width: 180px;
+    max-width: 235px;
     aspect-ratio: 1;
     display: grid;
     place-items: center;
@@ -162,7 +162,7 @@ const slices = computed(() => {
 
 .donut-segment.is-active {
     opacity: 1;
-    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.16));
 }
 
 .donut-segment.is-dimmed {
@@ -173,20 +173,20 @@ const slices = computed(() => {
     position: absolute;
     inset: 22%;
     border-radius: 50%;
-    background: #fff;
+    background: transparent;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    box-shadow: none;
     pointer-events: none;
     transition: all 0.25s ease;
     text-align: center;
-    padding: 6px;
+    padding: 8px;
 }
 
 .center-label {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     color: #697489;
     text-transform: uppercase;
@@ -196,7 +196,7 @@ const slices = computed(() => {
 }
 
 .center-value {
-    font-size: 19px;
+    font-size: 24px;
     font-weight: 800;
     color: #152033;
     line-height: 1.2;
@@ -205,18 +205,18 @@ const slices = computed(() => {
 }
 
 .center-sub {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: #8751ff;
-    margin-top: 1px;
+    margin-top: 2px;
 }
 
 .legend {
     width: 100%;
-    max-width: 280px;
+    max-width: 320px;
     display: grid;
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 9px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -225,13 +225,13 @@ const slices = computed(() => {
 
 .legend-item {
     display: grid;
-    grid-template-columns: 10px 1fr auto;
+    grid-template-columns: 12px 1fr auto;
     align-items: center;
-    gap: 10px;
-    padding: 6px 10px;
-    border-radius: 8px;
+    gap: 12px;
+    padding: 7px 12px;
+    border-radius: 9px;
     color: #697489;
-    font-size: 13px;
+    font-size: 13.5px;
     cursor: pointer;
     transition: background-color 0.2s ease, opacity 0.2s ease;
 }
@@ -247,31 +247,31 @@ const slices = computed(() => {
 }
 
 .legend-name {
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .legend-value {
     color: #152033;
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 700;
 }
 
 .legend-percent {
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
     color: #94a3b8;
-    margin-left: 3px;
+    margin-left: 4px;
 }
 
 .legend-total {
     width: 100%;
-    max-width: 280px;
+    max-width: 320px;
     display: flex;
     justify-content: space-between;
-    padding-top: 12px;
+    padding-top: 14px;
     border-top: 1px solid #e3e5e9;
     color: #697489;
-    font-size: 13px;
+    font-size: 13.5px;
 }
 
 .legend-total strong {
