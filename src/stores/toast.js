@@ -3,13 +3,14 @@ import { defineStore } from 'pinia'
 import { playMessageSound, playSuccessSound, playAlertSound } from '@/utils/sound'
 
 let nextToastId = 1
+const recentToastKeys = new Set()
 
 export const useToastStore = defineStore('toast', () => {
   const toasts = ref([])
 
   /**
-   * Add a toast notification
-   * @param {object} toast - { type, title, message, duration }
+   * Add a toast notification with built-in deduplication
+   * @param {object} toast - { type, title, message, duration, sound }
    */
   function addToast({
     type = 'info', // 'success' | 'error' | 'warning' | 'info'
@@ -18,11 +19,35 @@ export const useToastStore = defineStore('toast', () => {
     duration = 4000,
     sound = true,
   }) {
+    const finalTitle = title || (type === 'success' ? 'Success' : type === 'error' ? 'Error' : type === 'warning' ? 'Warning' : 'Notice')
+    const finalMessage = String(message || '').trim()
+
+    // Deduplication Key
+    const dedupeKey = `${type}_${finalTitle}_${finalMessage}`.toLowerCase()
+
+    // Prevent duplicate toasts within 3.5 seconds
+    if (recentToastKeys.has(dedupeKey)) {
+      return null
+    }
+
+    // Also check if an identical toast is currently visible in the active list
+    const isAlreadyVisible = toasts.value.some(
+      (t) => t.title === finalTitle && String(t.message || '').trim() === finalMessage
+    )
+    if (isAlreadyVisible) {
+      return null
+    }
+
+    recentToastKeys.add(dedupeKey)
+    setTimeout(() => {
+      recentToastKeys.delete(dedupeKey)
+    }, 3500)
+
     const id = nextToastId++
     const toast = {
       id,
       type,
-      title: title || (type === 'success' ? 'Success' : type === 'error' ? 'Error' : type === 'warning' ? 'Warning' : 'Notice'),
+      title: finalTitle,
       message,
       duration,
     }
