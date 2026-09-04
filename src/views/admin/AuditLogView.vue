@@ -215,6 +215,7 @@ function getActionClass(action) {
     if (act.includes('CREATE') || act.includes('INSERT')) return 'success'
     if (act.includes('UPDATE') || act.includes('EDIT')) return 'primary'
     if (act.includes('DELETE') || act.includes('REMOVE')) return 'danger'
+    if (act.includes('LOGOUT')) return 'danger'
     if (act.includes('LOGIN') || act.includes('AUTH')) return 'purple'
     return 'info'
 }
