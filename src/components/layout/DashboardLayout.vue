@@ -19,14 +19,22 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import DashboardNavbar from './DashboardNavbar.vue'
 import SidebarDashboard from './SidebarDashboard.vue'
 import { initSocket } from '@/services/socket'
+import { useNotificationStore } from '@/stores/notification'
 import { isMobileSidebarOpen, closeMobileSidebar } from '@/utils/mobileNav'
+
+const notifStore = useNotificationStore()
 
 onMounted(() => {
 	initSocket()
+	notifStore.startPolling()
+})
+
+onUnmounted(() => {
+	notifStore.stopPolling()
 })
 </script>
 
