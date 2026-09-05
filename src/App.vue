@@ -12,6 +12,7 @@ import BaseToast from '@/components/common/BaseToast.vue'
 const router = useRouter()
 const isRouteLoading = ref(false)
 
+
 router.beforeEach(() => {
   isRouteLoading.value = true
 })
