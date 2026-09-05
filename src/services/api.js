@@ -18,7 +18,9 @@ export async function apiRequest(path, options = {}) {
 }
 
 export const get = (path) => apiRequest(path)
-export const post = (path, body) => apiRequest(path, { method: 'POST', body: JSON.stringify(body) })
-export const put = (path, body) => apiRequest(path, { method: 'PUT', body: JSON.stringify(body) })
-export const patch = (path, body) => apiRequest(path, { method: 'PATCH', body: JSON.stringify(body) })
+const serializeBody = (body) => body instanceof FormData ? body : JSON.stringify(body)
+
+export const post = (path, body) => apiRequest(path, { method: 'POST', body: serializeBody(body) })
+export const put = (path, body) => apiRequest(path, { method: 'PUT', body: serializeBody(body) })
+export const patch = (path, body) => apiRequest(path, { method: 'PATCH', body: serializeBody(body) })
 export const del = (path) => apiRequest(path, { method: 'DELETE' })
