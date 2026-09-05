@@ -18,45 +18,45 @@
                     <form @submit.prevent="save">
                         <!-- Avatar Section -->
                         <div class="avatar-setting-section mb-4">
-                            <div class="avatar-preview-box">
+                            <h4 class="avatar-upload-title">Profile picture upload</h4>
+                            <div class="avatar-upload-row">
                                 <img
-                                    :src="getAvatarUrl(form.avatar_url)"
+                                    :src="avatarSrc"
                                     alt="Admin Avatar"
                                     class="avatar-large avatar-img"
                                     @error="$event.target.src = DEFAULT_AVATAR"
                                 />
-                            </div>
-                            <div class="avatar-inputs flex-grow-1">
-                                <label class="form-label fw-bold">Avatar Image URL</label>
-                                <div class="input-group">
-                                    <input
-                                        v-model="form.avatar_url"
-                                        type="url"
-                                        class="form-control"
-                                        placeholder="https://res.cloudinary.com/... or image link"
-                                    />
-                                    <button
-                                        type="button"
-                                        class="btn btn-outline-primary"
-                                        :disabled="avatarLoading || !form.avatar_url"
-                                        @click="updateAvatar"
-                                    >
-                                        <span v-if="avatarLoading" class="spinner-border spinner-border-sm me-1"></span>
-                                        Save Avatar
-                                    </button>
-                                    <button
-                                        v-if="form.avatar_url"
-                                        type="button"
-                                        class="btn btn-outline-danger"
-                                        :disabled="avatarLoading"
-                                        @click="deleteAvatar"
-                                    >
-                                        Remove
-                                    </button>
+                                <div class="avatar-upload-details">
+                                    <strong>{{ form.full_name || 'Admin User' }}</strong>
+                                    <span>Role/Title</span>
+                                    <span>Administrator</span>
                                 </div>
-                                <small class="text-muted mt-1 d-block">
-                                    Paste a direct image URL (PNG, JPG, Cloudinary link).
-                                </small>
+                                <input
+                                    ref="avatarFileInput"
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/gif,image/webp,image/avif"
+                                    class="d-none"
+                                    :disabled="avatarLoading"
+                                    @change="handleAvatarFile"
+                                />
+                                <button
+                                    type="button"
+                                    class="btn upload-photo-button"
+                                    :disabled="avatarLoading"
+                                    @click="chooseAvatarFile"
+                                >
+                                    <span v-if="avatarLoading" class="spinner-border spinner-border-sm me-1"></span>
+                                    <span v-else class="upload-cloud" aria-hidden="true">☁</span>
+                                    Upload New Photo
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn delete-photo-button"
+                                    :disabled="avatarLoading || !form.avatar_url"
+                                    @click="deleteAvatar"
+                                >
+                                    Delete
+                                </button>
                             </div>
                         </div>
 
@@ -118,7 +118,7 @@
                 <div class="card settings-card p-4 text-center">
                     <div class="d-flex justify-content-center mb-3">
                         <img
-                            :src="getAvatarUrl(form.avatar_url)"
+                            :src="avatarSrc"
                             alt="Admin Avatar"
                             class="avatar-preview-side avatar-img"
                             @error="$event.target.src = DEFAULT_AVATAR"
@@ -153,6 +153,10 @@ const form = ref({
     avatar_url: '',
 })
 
+const avatarFileInput = ref(null)
+const selectedAvatarFile = ref(null)
+const avatarPreviewUrl = ref('')
+const avatarSrc = computed(() => getAvatarUrl(avatarPreviewUrl.value || form.value.avatar_url))
 const loading = ref(false)
 const avatarLoading = ref(false)
 const message = ref('')
@@ -183,7 +187,12 @@ async function save() {
     loading.value = true
     message.value = ''
     try {
-        const res = await put('/auth/admin/profile/update-profile', form.value)
+        const res = await put('/auth/admin/profile/update-profile', {
+            full_name: form.value.full_name,
+            email: form.value.email,
+            phone_number: form.value.phone_number,
+            gender: form.value.gender,
+        })
         const updated = res?.data || res || form.value
         Object.assign(form.value, updated)
         authStore.updateUser(form.value)
@@ -196,6 +205,61 @@ async function save() {
         toast.error(message.value)
     } finally {
         loading.value = false
+    }
+}
+
+function handleAvatarFile(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+        message.value = 'Please select an image file.'
+        ok.value = false
+        selectedAvatarFile.value = null
+        return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+        message.value = 'Avatar must be 5 MB or smaller.'
+        ok.value = false
+        selectedAvatarFile.value = null
+        return
+    }
+
+    if (avatarPreviewUrl.value) URL.revokeObjectURL(avatarPreviewUrl.value)
+    selectedAvatarFile.value = file
+    avatarPreviewUrl.value = URL.createObjectURL(file)
+    uploadAvatarFile()
+}
+
+function chooseAvatarFile() {
+    avatarFileInput.value?.click()
+}
+
+async function uploadAvatarFile() {
+    if (!selectedAvatarFile.value) return
+
+    avatarLoading.value = true
+    message.value = ''
+    try {
+        const body = new FormData()
+        body.append('avatar', selectedAvatarFile.value)
+        const data = await put('/auth/admin/profile/update-avatar', body)
+        const newAvatarUrl = data?.avatar_url || ''
+        form.value.avatar_url = newAvatarUrl
+        authStore.updateUser({ ...data, avatar_url: newAvatarUrl })
+        selectedAvatarFile.value = null
+        if (avatarPreviewUrl.value) URL.revokeObjectURL(avatarPreviewUrl.value)
+        avatarPreviewUrl.value = ''
+        if (avatarFileInput.value) avatarFileInput.value.value = ''
+        message.value = 'Admin avatar uploaded successfully'
+        ok.value = true
+        toast.success('Admin avatar uploaded successfully!')
+    } catch (e) {
+        message.value = e.message || 'Failed to upload avatar'
+        ok.value = false
+        toast.error(message.value)
+    } finally {
+        avatarLoading.value = false
     }
 }
 
@@ -265,6 +329,17 @@ async function deleteAvatar() {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
+.settings-card .btn-primary {
+    border-color: #2F1F6E;
+    background-color: #2F1F6E;
+}
+
+.settings-card .btn-primary:hover:not(:disabled),
+.settings-card .btn-primary:focus-visible {
+    border-color: #241752;
+    background-color: #241752;
+}
+
 .card-section-title {
     font-size: 18px;
     font-weight: 700;
@@ -277,16 +352,80 @@ async function deleteAvatar() {
 }
 
 .avatar-setting-section {
+    display: block;
+}
+
+.avatar-upload-title {
+    margin: 0 0 14px;
+    color: #111827;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.avatar-upload-row {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 14px;
     flex-wrap: wrap;
+}
+
+.avatar-upload-details {
+    display: flex;
+    min-width: 120px;
+    flex-direction: column;
+    gap: 2px;
+    margin-right: auto;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.25;
+}
+
+.avatar-upload-details strong {
+    margin-bottom: 2px;
+    color: #111827;
+    font-size: 15px;
+}
+
+.upload-photo-button,
+.delete-photo-button {
+    min-height: 42px;
+    padding: 9px 17px;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.upload-photo-button {
+    color: #ffffff;
+    background: linear-gradient(135deg, #4f2aa8, #6244c4);
+}
+
+.upload-photo-button:hover:not(:disabled) {
+    color: #ffffff;
+    background: linear-gradient(135deg, #41208e, #5534b0);
+}
+
+.delete-photo-button {
+    color: #51418e;
+    border: 1px solid #8174c6;
+    background: #ffffff;
+}
+
+.delete-photo-button:hover:not(:disabled) {
+    color: #3e2e7d;
+    background: #f6f4ff;
+}
+
+.upload-cloud {
+    margin-right: 4px;
+    font-size: 17px;
 }
 
 .avatar-large {
     width: 76px;
     height: 76px;
-    border-radius: 20px;
+    border-radius: 50%;
     display: grid;
     place-items: center;
     font-size: 28px;
@@ -332,6 +471,15 @@ async function deleteAvatar() {
 
 :global([data-theme="dark"] .card-section-title) {
     color: #f8fafc;
+}
+
+:global([data-theme="dark"] .avatar-upload-title),
+:global([data-theme="dark"] .avatar-upload-details strong) {
+    color: #f8fafc;
+}
+
+:global([data-theme="dark"] .delete-photo-button) {
+    background: #111827;
 }
 
 :global([data-theme="dark"] .form-divider) {
