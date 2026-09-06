@@ -50,13 +50,15 @@
         Forgot password?
       </RouterLink>
 
-      <p v-if="error" class="form-message error">{{ error }}</p>
+      <p v-if="error" class="form-message error">
+        {{ retryAfter > 0 ? `Too many login attempts. Please try again in ${formatRetryAfter(retryAfter)}.` : error }}
+      </p>
       <p v-if="success" class="form-message success">{{ success }}</p>
 
-      <button class="submit-button" type="submit" :disabled="loading">
+      <button class="submit-button" type="submit" :disabled="loading || retryAfter > 0">
         <span v-if="loading" class="btn-spinner" aria-hidden="true"></span>
-        <span>{{ loading ? 'Signing in…' : 'Continue' }}</span>
-        <span v-if="!loading">→</span>
+        <span>{{ loading ? 'Signing in…' : retryAfter > 0 ? `Try again in ${formatRetryAfter(retryAfter)}` : 'Continue' }}</span>
+        <span v-if="!loading && retryAfter === 0">→</span>
       </button>
     </form>
 
@@ -68,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { IconEye, IconEyeOff } from '@tabler/icons-vue'
 import AuthLayout from '@/components/layout/AuthLayout.vue'
@@ -92,8 +94,34 @@ const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
+const retryAfter = ref(0)
+let retryTimer = null
+
+function startRetryCountdown(seconds) {
+  clearInterval(retryTimer)
+  retryAfter.value = Math.max(1, Math.ceil(seconds))
+
+  retryTimer = setInterval(() => {
+    retryAfter.value -= 1
+    if (retryAfter.value <= 0) {
+      retryAfter.value = 0
+      clearInterval(retryTimer)
+      retryTimer = null
+    }
+  }, 1000)
+}
+
+function formatRetryAfter(seconds) {
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `${minutes} minutes ${remainingSeconds} seconds`
+}
+
+onBeforeUnmount(() => clearInterval(retryTimer))
 
 async function submit() {
+  if (retryAfter.value > 0) return
+
   error.value = ''
   success.value = ''
 
@@ -140,8 +168,14 @@ async function submit() {
     toast.success('Welcome back! You’re now securely signed in.', 'Login successful!')
     await router.push({ name: isAdmin ? 'admin-dashboard' : 'user-dashboard' })
   } catch (err) {
-    error.value = err.message
-    toast.error(err.message, 'Login Failed')
+    if (err.status === 429) {
+      startRetryCountdown(err.retryAfter || 15 * 60)
+      error.value = 'Too many login attempts. Please try again later.'
+      toast.error(error.value, 'Login Failed')
+    } else {
+      error.value = err.message
+      toast.error(err.message, 'Login Failed')
+    }
   } finally {
     loading.value = false
   }
