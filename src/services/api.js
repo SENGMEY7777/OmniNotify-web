@@ -12,7 +12,13 @@ export async function apiRequest(path, options = {}) {
     const payload = await response.json().catch(() => ({}))
     if (!response.ok || payload.success === false) {
         if (response.status === 401 || response.status === 403) window.dispatchEvent(new CustomEvent('auth-expired'))
-        throw new Error(payload.message || `Request failed (${response.status})`)
+        const error = new Error(payload.message || `Request failed (${response.status})`)
+        error.status = response.status
+
+        const retryAfter = Number(response.headers.get('Retry-After'))
+        if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter
+
+        throw error
     }
     return payload.data ?? payload
 }
