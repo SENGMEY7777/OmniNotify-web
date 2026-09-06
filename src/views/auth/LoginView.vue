@@ -138,7 +138,7 @@ async function submit() {
 
     success.value = 'Welcome back! You’re now securely signed in.'
     toast.success('Welcome back! You’re now securely signed in.', 'Login successful!')
-    await router.push({ name: isAdmin ? 'admin-dashboard' : 'user-home' })
+    await router.push({ name: isAdmin ? 'admin-dashboard' : 'user-dashboard' })
   } catch (err) {
     error.value = err.message
     toast.error(err.message, 'Login Failed')
