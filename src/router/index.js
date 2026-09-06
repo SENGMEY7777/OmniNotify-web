@@ -88,9 +88,29 @@ const router = createRouter({
     },
     {
       path: '/user',
-      name: 'user-home',
-      component: () => import('@/views/user/UserHomeView.vue'),
+      component: () => import('@/components/layout/DashboardLayout.vue'),
       meta: { requiresAuth: true, role: 'user' },
+      children: [
+        {
+          path: '',
+          name: 'user-dashboard',
+          component: () => import('@/views/user/UserDashboardView.vue'),
+        },
+        {
+          path: 'dashboard',
+          redirect: { name: 'user-dashboard' },
+        },
+        {
+          path: 'notification',
+          name: 'user-notification',
+          component: () => import('@/views/user/UserNotificationsView.vue'),
+        },
+        {
+          path: 'profile',
+          name: 'user-profile',
+          component: () => import('@/views/user/UserProfileView.vue'),
+        },
+      ],
     },
   ],
 })
@@ -98,9 +118,9 @@ const router = createRouter({
 router.beforeEach((to) => {
   const hasToken = Boolean(getCookie('token') || localStorage.getItem('token'))
   if (to.meta.requiresAuth && !hasToken) return { name: 'login' }
-  if (to.meta.guestOnly && hasToken) return { name: JSON.parse(localStorage.getItem('user') || '{}').role === 'user' ? 'user-home' : 'admin-dashboard' }
+  if (to.meta.guestOnly && hasToken) return { name: JSON.parse(localStorage.getItem('user') || '{}').role === 'user' ? 'user-dashboard' : 'admin-dashboard' }
   const role = JSON.parse(localStorage.getItem('user') || '{}').role
-  if (to.meta.role && role && to.meta.role !== role) return { name: role === 'user' ? 'user-home' : 'admin-dashboard' }
+  if (to.meta.role && role && to.meta.role !== role) return { name: role === 'user' ? 'user-dashboard' : 'admin-dashboard' }
 })
 
 export default router
