@@ -15,16 +15,19 @@ body {
 
 html, body, #app {
   min-width: 320px;
-  height: 100%;
+  min-height: 100%;
   margin: 0;
 }
 
 html, body {
   overflow-x: hidden;
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
-#app { width: 100%; }
+#app {
+  width: 100%;
+  min-height: 100%;
+}
 
 @layer base {
     :root {
@@ -261,6 +264,12 @@ html, body {
   color: #60a5fa !important;
   background: #172554 !important;
   border: 1px solid #1e40af !important;
+}
+
+[data-theme="dark"] .status-badge.cancelled {
+  color: #94a3b8 !important;
+  background: #1e293b !important;
+  border: 1px solid #334155 !important;
 }
 
 [data-theme="dark"] .channel-badge {
