@@ -325,6 +325,8 @@ async function markAsRead(item) {
 }
 
 async function markAllAsRead() {
+  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  const isAdmin = user.role === 'admin'
   const unreadItems = items.value.filter((i) => !i.read)
   items.value.forEach((item) => {
     item.read = true
