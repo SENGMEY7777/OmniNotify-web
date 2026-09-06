@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiRequest } from '@/services/api'
+import { getCookie } from '@/utils/cookies'
 
 export function isItemRead(n) {
   if (!n) return true
@@ -31,7 +32,7 @@ export const useNotificationStore = defineStore('notification', () => {
   let initialFetchDone = false
 
   async function fetchNotifications() {
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('token') || (typeof document !== 'undefined' ? getCookie('token') : '')
     if (!token) return
 
     try {
@@ -42,13 +43,18 @@ export const useNotificationStore = defineStore('notification', () => {
       const res = await apiRequest(endpoint)
       const list = Array.isArray(res) ? res : (res.data || res.notifications || [])
 
-      notifications.value = list
+      // Merge optimistic unread items from notifications.value if any exist
+      const localPendingUnread = notifications.value.filter(
+        (local) => !isItemRead(local) && !list.some((server) => (server.notification_id || server.id) === (local.notification_id || local.id))
+      )
+      const fullList = [...localPendingUnread, ...list]
+      notifications.value = fullList
 
-      const unreadList = list.filter((n) => !isItemRead(n))
+      const unreadList = fullList.filter((n) => !isItemRead(n))
 
-      if (typeof res.unread_count === 'number') {
+      if (typeof res.unread_count === 'number' && localPendingUnread.length === 0) {
         totalUnread.value = res.unread_count
-      } else if (typeof res.total_unread === 'number') {
+      } else if (typeof res.total_unread === 'number' && localPendingUnread.length === 0) {
         totalUnread.value = res.total_unread
       } else {
         totalUnread.value = unreadList.length
@@ -56,9 +62,15 @@ export const useNotificationStore = defineStore('notification', () => {
 
       // After initial load, detect truly new unread items and fire popups
       if (initialFetchDone) {
+        const now = Date.now()
         const newItems = unreadList.filter((n) => {
           const id = n.notification_id || n.id
-          return id && !knownIds.has(id)
+          if (!id || knownIds.has(id)) return false
+          if (n.created_at) {
+            const cTime = new Date(n.created_at).getTime()
+            if (cTime < now - 60000) return false
+          }
+          return true
         })
         newItems.forEach((n) => {
           window.dispatchEvent(new CustomEvent('new-notification', { detail: n }))
