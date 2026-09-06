@@ -2,11 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import TablerIcon from '@/components/common/TablerIcon.vue'
+import { IconLogout2 } from '@tabler/icons-vue'
 import NotificationDropdown from './NotificationDropdown.vue'
 import { useNotificationStore } from '@/stores/notification'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
-import { get } from '@/services/api'
+import { get, apiRequest } from '@/services/api'
 import { getAvatarUrl, DEFAULT_AVATAR } from '@/utils/avatar'
 import { initTheme, toggleTheme, isDark } from '@/utils/theme'
 import { isSidebarCollapsed, toggleSidebarCollapse, toggleMobileSidebar } from '@/utils/sidebarState'
@@ -18,10 +19,12 @@ const toast = useToastStore()
 
 const showNotifications = ref(false)
 const showProfileMenu = ref(false)
+const showLogoutModal = ref(false)
+const isLoggingOut = ref(false)
 const profileMenuRef = ref(null)
 
 const userName = computed(() => authStore.user?.full_name || authStore.user?.name || 'Gustavo')
-const userEmail = computed(() => authStore.user?.email || 'admin@omninotify.com')
+const userEmail = computed(() => authStore.user?.email || (authStore.user?.role === 'user' ? 'user@omninotify.com' : 'admin@omninotify.com'))
 const userRole = computed(() => (authStore.user?.role || 'admin').toUpperCase())
 const userInitial = computed(() => (userName.value?.[0] || 'G').toUpperCase())
 const userAvatar = computed(() => getAvatarUrl(authStore.user?.avatar_url || authStore.user?.avatar))
@@ -38,7 +41,18 @@ function toggleProfileMenu() {
 
 function handleLogout() {
 	showProfileMenu.value = false
+	showLogoutModal.value = true
+}
+
+async function confirmLogout() {
+	isLoggingOut.value = true
+	try {
+		await apiRequest(authStore.isUser ? '/auth/user/logout' : '/auth/admin/logout', { method: 'DELETE' })
+	} catch (_) {}
+
 	authStore.clearAuth()
+	toast.info('You have been signed out safely.', 'Signed Out')
+	showLogoutModal.value = false
 	router.push('/login')
 }
 
@@ -51,8 +65,10 @@ function handleClickOutside(e) {
 const seenPopupIds = new Set()
 
 function handleLiveNotification(event) {
-	// Refresh badge count
-	notifStore.fetchNotifications()
+	// Refresh badge count with slight delay to ensure DB transaction is completed
+	setTimeout(() => {
+		notifStore.fetchNotifications()
+	}, 800)
 
 	// Only show popup for 'new-notification' events (not status-changed)
 	if (event.type !== 'new-notification') return
@@ -70,11 +86,12 @@ function handleLiveNotification(event) {
 	setTimeout(() => seenPopupIds.delete(id), 8000)
 
 	// Show the popup toast (for manually dispatched events, e.g. from ManageNotificationView)
+	const isLogin = n.event_type === 'USER_LOGIN' || n.type === 'USER_LOGIN' || String(n.title || '').toLowerCase().includes('security') || String(n.title || '').toLowerCase().includes('login')
 	toast.addToast({
-		type: 'info',
-		title: n.title || '🔔 New Notification',
+		type: isLogin ? 'warning' : (n.priority === 'HIGH' || n.priority === 'CRITICAL' ? 'warning' : 'info'),
+		title: n.title || (isLogin ? '🔐 Security Alert: User Login' : '🔔 New Notification'),
 		message: n.body || n.message || '',
-		duration: 7000,
+		duration: 8000,
 		sound: true,
 	})
 }
@@ -82,7 +99,7 @@ function handleLiveNotification(event) {
 async function refreshUserProfile() {
 	if (!authStore.token) return
 	try {
-		const res = await get('/auth/admin/profile')
+		const res = await get(authStore.isUser ? '/auth/user/me' : '/auth/admin/profile')
 		const profile = res?.data || res?.user || res
 		if (profile && (profile.email || profile.user_id || profile.id)) {
 			authStore.updateUser(profile)
@@ -90,18 +107,27 @@ async function refreshUserProfile() {
 	} catch (_) {}
 }
 
+function handleKeyDown(e) {
+	if (e.key === 'Escape' && showLogoutModal.value) {
+		showLogoutModal.value = false
+	}
+}
+
 onMounted(() => {
 	initTheme()
 	refreshUserProfile()
+	notifStore.fetchNotifications()
 	document.addEventListener('click', handleClickOutside)
 	window.addEventListener('new-notification', handleLiveNotification)
 	window.addEventListener('notification-status-changed', handleLiveNotification)
+	window.addEventListener('keydown', handleKeyDown)
 })
 
 onBeforeUnmount(() => {
 	document.removeEventListener('click', handleClickOutside)
 	window.removeEventListener('new-notification', handleLiveNotification)
 	window.removeEventListener('notification-status-changed', handleLiveNotification)
+	window.removeEventListener('keydown', handleKeyDown)
 })
 </script>
 
@@ -155,10 +181,12 @@ onBeforeUnmount(() => {
 						aria-label="Notifications"
 						@click="toggleNotifications"
 					>
-						<TablerIcon name="bell" size="20" />
-						<span v-if="notifStore.unreadCount > 0" class="notification-badge" aria-label="Unread notifications count">
-							{{ notifStore.unreadCount > 99 ? '99+' : notifStore.unreadCount }}
-						</span>
+						<div class="bell-icon-wrapper">
+							<TablerIcon name="bell" size="20" />
+							<span v-if="notifStore.unreadCount > 0" class="notification-badge" aria-label="Unread notifications count">
+								{{ notifStore.unreadCount > 99 ? '99+' : notifStore.unreadCount }}
+							</span>
+						</div>
 					</button>
 				</div>
 				<NotificationDropdown
@@ -193,11 +221,11 @@ onBeforeUnmount(() => {
 						</div>
 						<div class="profile-dropdown-divider"></div>
 						<div class="profile-dropdown-body">
-							<RouterLink to="/admin/setting" class="profile-dropdown-item" @click="showProfileMenu = false">
+							<RouterLink :to="authStore.isUser ? { name: 'user-profile' } : { name: 'setting' }" class="profile-dropdown-item" @click="showProfileMenu = false">
 								<TablerIcon name="settings" size="18" />
 								<span>Settings</span>
 							</RouterLink>
-							<RouterLink to="/admin/manage-user" class="profile-dropdown-item" @click="showProfileMenu = false">
+							<RouterLink v-if="authStore.isAdmin" to="/admin/manage-user" class="profile-dropdown-item" @click="showProfileMenu = false">
 								<TablerIcon name="users" size="18" />
 								<span>Manage Users</span>
 							</RouterLink>
@@ -218,6 +246,30 @@ onBeforeUnmount(() => {
 			</div>
 
 		</div>
+
+		<!-- Logout Confirmation Modal (Matches Sidebar Admin Design) -->
+		<teleport to="body">
+			<transition name="modal-fade">
+				<div v-if="showLogoutModal" class="logout-modal-backdrop" @click.self="showLogoutModal = false">
+					<div class="logout-modal-dialog-box" role="dialog" aria-modal="true" aria-labelledby="logout-title">
+						<div class="logout-modal-icon-badge">
+							<IconLogout2 :size="28" :stroke-width="2.2" />
+						</div>
+						<h3 id="logout-title" class="logout-modal-title">Sign Out</h3>
+						<p class="logout-modal-desc">Are you sure you want to log out of your session? You will need to sign in again to access the dashboard.</p>
+						<div class="logout-modal-actions">
+							<button type="button" class="btn-cancel" :disabled="isLoggingOut" @click="showLogoutModal = false">
+								Cancel
+							</button>
+							<button type="button" class="btn-confirm-logout" :disabled="isLoggingOut" @click="confirmLogout">
+								<span v-if="isLoggingOut" class="btn-spinner" aria-hidden="true"></span>
+								<span>{{ isLoggingOut ? 'Logging out...' : 'Yes, Log Out' }}</span>
+							</button>
+						</div>
+					</div>
+				</div>
+			</transition>
+		</teleport>
 	</header>
 </template>
 
@@ -326,7 +378,7 @@ kbd {
 }
 
 .utility-actions {
-	overflow: hidden;
+	overflow: visible;
 }
 
 .icon-button {
@@ -381,10 +433,17 @@ kbd {
 	position: relative;
 }
 
+.bell-icon-wrapper {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
 .notification-badge {
 	position: absolute;
-	top: 7px;
-	right: 18px;
+	top: -6px;
+	right: -8px;
 	min-width: 18px;
 	height: 18px;
 	padding: 0 4px;
@@ -394,13 +453,14 @@ kbd {
 	border-radius: 9px;
 	background: #6737d7;
 	color: #fff;
-	font-size: 10.5px;
+	font-size: 10px;
 	font-weight: 700;
 	font-family: inherit;
 	line-height: 1;
 	border: 2px solid #fff;
 	box-shadow: 0 2px 5px rgba(103, 55, 215, 0.35);
 	pointer-events: none;
+	z-index: 2;
 }
 
 .profile-button {
@@ -748,5 +808,133 @@ img.avatar {
 :global([data-theme="dark"] .notification-badge) {
 	border-color: #111827 !important;
 }
-</style>
 
+/* Logout Modal (Matches Sidebar Design) */
+.logout-modal-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	background: rgba(15, 23, 42, 0.5);
+	backdrop-filter: blur(6px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+}
+
+.logout-modal-dialog-box {
+	width: 100%;
+	max-width: 400px;
+	background: #ffffff;
+	border-radius: 20px;
+	padding: 30px 24px 24px;
+	text-align: center;
+	box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.25);
+}
+
+:global([data-theme="dark"] .logout-modal-dialog-box) {
+	background: #111827 !important;
+	border: 1px solid #1f293d;
+}
+
+.logout-modal-icon-badge {
+	width: 56px;
+	height: 56px;
+	margin: 0 auto 16px;
+	border-radius: 50%;
+	background: #fff1f2;
+	color: #f43f5e;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.logout-modal-title {
+	font-size: 20px;
+	font-weight: 800;
+	color: #0f172a;
+	margin: 0 0 8px;
+}
+
+:global([data-theme="dark"] .logout-modal-title) {
+	color: #f8fafc !important;
+}
+
+.logout-modal-desc {
+	font-size: 13.5px;
+	color: #64748b;
+	line-height: 1.55;
+	margin: 0 0 22px;
+}
+
+:global([data-theme="dark"] .logout-modal-desc) {
+	color: #94a3b8 !important;
+}
+
+.logout-modal-actions {
+	display: flex;
+	gap: 10px;
+}
+
+.btn-cancel,
+.btn-confirm-logout {
+	flex: 1;
+	height: 44px;
+	border-radius: 12px;
+	font-size: 14px;
+	font-weight: 700;
+	cursor: pointer;
+	transition: all 0.15s ease;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.btn-cancel {
+	background: #f1f5f9;
+	border: 0;
+	color: #475569;
+}
+
+.btn-cancel:hover:not(:disabled) {
+	background: #e2e8f0;
+	color: #1e293b;
+}
+
+:global([data-theme="dark"] .btn-cancel) {
+	background: #1e293b !important;
+	color: #cbd5e1 !important;
+}
+
+.btn-confirm-logout {
+	background: #f43f5e;
+	border: 0;
+	color: #ffffff;
+	box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3);
+}
+
+.btn-confirm-logout:hover:not(:disabled) {
+	background: #e11d48;
+}
+
+.btn-spinner {
+	width: 15px;
+	height: 15px;
+	border: 2px solid rgba(255, 255, 255, 0.35);
+	border-top-color: #ffffff;
+	border-radius: 50%;
+	display: inline-block;
+	animation: spin 0.65s linear infinite;
+	margin-right: 6px;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+	transition: opacity 0.2s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+	opacity: 0;
+}
+</style>
