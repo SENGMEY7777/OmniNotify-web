@@ -174,7 +174,13 @@ async function loadProfile() {
     try {
         const res = await get('/auth/admin/profile')
         const data = res?.data || res || {}
-        Object.assign(form.value, data)
+        // Only assign the 5 editable fields — never spread the whole API response
+        // into the form (would include user_id, role, status, is_verified, etc.)
+        form.value.full_name    = data.full_name    ?? ''
+        form.value.email        = data.email        ?? ''
+        form.value.phone_number = data.phone_number ?? ''
+        form.value.gender       = Number(data.gender ?? 0)
+        form.value.avatar_url   = data.avatar_url   ?? ''
         authStore.updateUser(data)
     } catch (e) {
         message.value = e.message || 'Failed to load profile'
@@ -187,15 +193,26 @@ async function save() {
     loading.value = true
     message.value = ''
     try {
-        const res = await put('/auth/admin/profile/update-profile', {
+        const payload = {
             full_name: form.value.full_name,
             email: form.value.email,
             phone_number: form.value.phone_number,
             gender: form.value.gender,
-        })
-        const updated = res?.data || res || form.value
-        Object.assign(form.value, updated)
-        authStore.updateUser(form.value)
+        }
+        const res = await put('/auth/admin/profile/update-profile', payload)
+        const updated = res?.data || res || {}
+        
+        // Update form and store only with returned editable fields
+        const cleaned = {
+            full_name: updated.full_name ?? form.value.full_name,
+            email: updated.email ?? form.value.email,
+            phone_number: updated.phone_number ?? form.value.phone_number,
+            gender: Number(updated.gender ?? form.value.gender)
+        }
+        
+        Object.assign(form.value, cleaned)
+        authStore.updateUser(cleaned)
+        
         message.value = 'Admin profile updated successfully'
         ok.value = true
         toast.success('Admin profile updated successfully!')
