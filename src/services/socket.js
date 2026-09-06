@@ -49,6 +49,7 @@ export function initSocket(forceReconnect = false) {
     } catch (_) {}
   })
 
+  const pageLoadedAt = Date.now()
   const seenNotificationIds = new Set()
 
   function handleIncomingNotification(data) {
@@ -68,20 +69,6 @@ export function initSocket(forceReconnect = false) {
 
     console.log('[Socket.IO] Incoming notification received:', payload)
 
-    // Play chime sound and show toast popup
-    try {
-      const toast = useToastStore()
-      toast.addToast({
-        type: 'info',
-        title: payload.title || '🔔 New Notification',
-        message: payload.body || payload.message || '',
-        duration: 7000,
-        sound: true,
-      })
-    } catch (_) {
-      playMessageSound()
-    }
-
     // Increment reactive notification store count
     try {
       const notifStore = useNotificationStore()
@@ -89,10 +76,32 @@ export function initSocket(forceReconnect = false) {
     } catch (_) {}
 
     // Dispatch custom DOM event for NotificationDropdown and Navbar
-    // Mark toastShown=true so DashboardNavbar doesn't duplicate the popup
     window.dispatchEvent(new CustomEvent('new-notification', {
       detail: { ...payload, _toastShown: true }
     }))
+
+    // Only show toast popup for fresh/live notifications (not historical notifications replayed on socket connect)
+    if (payload.created_at) {
+      const createdTime = new Date(payload.created_at).getTime()
+      if (createdTime < pageLoadedAt - 60000) {
+        return
+      }
+    }
+
+    // Play chime sound and show toast popup
+    try {
+      const toast = useToastStore()
+      const isLogin = payload.event_type === 'USER_LOGIN' || payload.type === 'USER_LOGIN' || String(payload.title || '').toLowerCase().includes('security') || String(payload.title || '').toLowerCase().includes('login')
+      toast.addToast({
+        type: isLogin ? 'warning' : (payload.priority === 'HIGH' || payload.priority === 'CRITICAL' ? 'warning' : 'info'),
+        title: payload.title || (isLogin ? '🔐 Security Alert: User Login' : '🔔 New Notification'),
+        message: payload.body || payload.message || '',
+        duration: 8000,
+        sound: true,
+      })
+    } catch (_) {
+      playSecurityAlertSound()
+    }
   }
 
   // Listen on every possible backend event name
