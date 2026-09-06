@@ -9,10 +9,14 @@
 	>
 		<!-- Top Section: Brand / Theme -->
 		<div class="rail-top">
-			<RouterLink class="rail-brand d-flex align-items-center gap-3" :to="{ name: 'admin-dashboard' }" aria-label="Fundex home" @click="closeMobileSidebar">
-				<div class="brand-mark" aria-hidden="true"><i class="brand-mark-shape"></i></div>
-				<span v-if="!isSidebarCollapsed" class="brand-name">Fundex</span>
-			</RouterLink>
+						<RouterLink v-if="isAdmin" class="rail-brand d-flex align-items-center gap-3" :to="{ name: 'admin-dashboard' }" aria-label="Fundex home" @click="closeMobileSidebar">
+							<div class="brand-mark" aria-hidden="true"><i class="brand-mark-shape"></i></div>
+							<span v-if="!isSidebarCollapsed" class="brand-name">Fundex</span>
+						</RouterLink>
+						<RouterLink v-else class="rail-brand d-flex align-items-center gap-3" :to="{ name: 'user-dashboard' }" aria-label="Fundex home" @click="closeMobileSidebar">
+							<div class="brand-mark" aria-hidden="true"><i class="brand-mark-shape"></i></div>
+							<span v-if="!isSidebarCollapsed" class="brand-name">Fundex</span>
+						</RouterLink>
 		</div>
 
 		<!-- Navigation Icons -->
@@ -24,7 +28,7 @@
 						class="rail-link"
 						active-class="active"
 						exact-active-class="active"
-						:to="{ name: 'admin-dashboard' }"
+						:to="{ name: isAdmin ? 'admin-dashboard' : 'user-dashboard' }"
 						@click="closeMobileSidebar"
 					>
 						<div class="icon-box">
@@ -40,7 +44,7 @@
 					<RouterLink
 						class="rail-link"
 						active-class="active"
-						:to="{ name: 'notification' }"
+						:to="{ name: isAdmin ? 'notification' : 'user-notification' }"
 						@click="closeMobileSidebar"
 					>
 						<div class="icon-box">
@@ -58,7 +62,7 @@
 				</li>
 
 				<!-- Templates -->
-				<li class="rail-item">
+				<li v-if="isAdmin" class="rail-item">
 					<RouterLink
 						class="rail-link"
 						active-class="active"
@@ -73,8 +77,31 @@
 					</RouterLink>
 				</li>
 
+				<li v-if="!isAdmin" class="rail-item">
+					<RouterLink class="rail-link" active-class="active" :to="{ name: 'user-profile' }" @click="closeMobileSidebar">
+						<div class="icon-box"><TablerIcon name="user" size="22" /></div>
+						<span v-if="!isSidebarCollapsed" class="link-text">My Profile</span>
+						<span v-if="isSidebarCollapsed" class="rail-tooltip">My Profile</span>
+					</RouterLink>
+				</li>
+
+				<li v-if="!isAdmin" class="rail-item">
+					<button
+						type="button"
+						class="rail-link rail-link-btn"
+						aria-label="Link Telegram"
+						@click="openTelegramModal"
+					>
+						<div class="icon-box">
+							<IconBrandTelegram :size="22" />
+						</div>
+						<span v-if="!isSidebarCollapsed" class="link-text">Link Telegram</span>
+						<span v-if="isSidebarCollapsed" class="rail-tooltip">Link Telegram</span>
+					</button>
+				</li>
+
 				<!-- Users -->
-				<li class="rail-item">
+				<li v-if="isAdmin" class="rail-item">
 					<RouterLink
 						class="rail-link"
 						active-class="active"
@@ -90,7 +117,7 @@
 				</li>
 
 				<!-- Delivery Logs -->
-				<li class="rail-item">
+				<li v-if="isAdmin" class="rail-item">
 					<RouterLink
 						class="rail-link"
 						active-class="active"
@@ -106,7 +133,7 @@
 				</li>
 
 				<!-- Audit Logs -->
-				<li class="rail-item">
+				<li v-if="isAdmin" class="rail-item">
 					<RouterLink
 						class="rail-link"
 						active-class="active"
@@ -122,7 +149,7 @@
 				</li>
 
 				<!-- Settings -->
-				<li class="rail-item">
+				<li v-if="isAdmin" class="rail-item">
 					<RouterLink
 						class="rail-link"
 						active-class="active"
@@ -208,12 +235,86 @@
 				</div>
 			</transition>
 		</teleport>
+
+		<!-- Telegram Link Modal -->
+		<teleport to="body">
+			<transition name="modal-fade">
+				<div v-if="showTelegramModal" class="modal-backdrop" @click.self="showTelegramModal = false">
+					<div class="modal-dialog-box modal-telegram-box" role="dialog" aria-modal="true" aria-labelledby="telegram-modal-title">
+						<div class="modal-icon-badge telegram-badge">
+							<IconBrandTelegram :size="30" :stroke-width="2" />
+						</div>
+						<h3 id="telegram-modal-title" class="modal-title">Connect Telegram Bot</h3>
+						<p class="modal-desc">
+							Link your Telegram account to receive real-time banking alerts, transfer updates, and instant OTP security codes.
+						</p>
+
+						<!-- Telegram Connect Steps -->
+						<div v-if="telegramLink" class="telegram-link-card">
+							<div class="step-row">
+								<span class="step-badge">1</span>
+								<span class="step-label">Open bot with your secure link:</span>
+							</div>
+
+							<div class="telegram-url-input-wrap">
+								<input
+									type="text"
+									readonly
+									:value="telegramLink"
+									class="telegram-url-input"
+									@click="$event.target.select()"
+								/>
+								<button
+									type="button"
+									class="btn-copy-link"
+									@click="copyTelegramLink"
+								>
+									{{ copied ? 'Copied!' : 'Copy' }}
+								</button>
+							</div>
+
+							<div class="step-row mt-2">
+								<span class="step-badge">2</span>
+								<span class="step-label">Press <strong>Start</strong> in Telegram to activate!</span>
+							</div>
+						</div>
+
+						<p v-if="telegramError" class="alert alert-danger p-2 small mt-2">{{ telegramError }}</p>
+
+						<div class="modal-actions mt-4">
+							<button type="button" class="btn-cancel" @click="showTelegramModal = false">
+								Close
+							</button>
+							<button
+								v-if="telegramLink"
+								type="button"
+								class="btn-telegram-primary"
+								@click="openTelegramBot"
+							>
+								<IconBrandTelegram :size="18" />
+								<span>Open in Telegram</span>
+							</button>
+							<button
+								v-else
+								type="button"
+								class="btn-telegram-primary"
+								:disabled="telegramLoading"
+								@click="generateTelegramLink"
+							>
+								<span v-if="telegramLoading" class="btn-spinner" aria-hidden="true"></span>
+								<span>{{ telegramLoading ? 'Connecting...' : 'Generate Link' }}</span>
+							</button>
+						</div>
+					</div>
+				</div>
+			</transition>
+		</teleport>
 	</aside>
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue'
-import { IconLogout2 } from '@tabler/icons-vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { IconBrandTelegram, IconLogout2 } from '@tabler/icons-vue'
 import TablerIcon from '@/components/common/TablerIcon.vue'
 import { apiRequest } from '@/services/api'
 import { useRouter } from 'vue-router'
@@ -230,6 +331,59 @@ const notifStore = useNotificationStore()
 
 const showLogoutModal = ref(false)
 const isLoggingOut = ref(false)
+const showTelegramModal = ref(false)
+const telegramLoading = ref(false)
+const telegramLink = ref('')
+const telegramError = ref('')
+const copied = ref(false)
+
+const isAdmin = computed(() => authStore.user?.role === 'admin')
+
+async function openTelegramModal() {
+	closeMobileSidebar()
+	showTelegramModal.value = true
+	telegramError.value = ''
+	if (!telegramLink.value) {
+		await generateTelegramLink()
+	}
+}
+
+async function generateTelegramLink() {
+	telegramLoading.value = true
+	telegramError.value = ''
+	try {
+		const res = await apiRequest('/auth/user/telegram/link', { method: 'POST' })
+		const data = res?.data || res || {}
+		if (data.link) {
+			telegramLink.value = data.link
+		} else {
+			telegramError.value = 'Could not generate Telegram link. Please try again.'
+		}
+	} catch (err) {
+		telegramError.value = err.message || 'Failed to generate Telegram link.'
+	} finally {
+		telegramLoading.value = false
+	}
+}
+
+function openTelegramBot() {
+	if (telegramLink.value) {
+		window.open(telegramLink.value, '_blank')
+		toast.success('Opening Telegram bot!')
+	}
+}
+
+async function copyTelegramLink() {
+	if (!telegramLink.value) return
+	try {
+		await navigator.clipboard.writeText(telegramLink.value)
+		copied.value = true
+		toast.success('Telegram link copied to clipboard!')
+		setTimeout(() => { copied.value = false }, 3000)
+	} catch (_) {
+		toast.info('Link ready to copy.')
+	}
+}
 
 function handleUpgrade() {
 	toast.info('Pro plan upgrades and billing features are coming soon.', 'Upgrade to Pro')
@@ -239,7 +393,7 @@ async function confirmLogout() {
 	try {
 		isLoggingOut.value = true
 		try {
-			await apiRequest('/auth/admin/logout', { method: 'DELETE' })
+			await apiRequest(isAdmin.value ? '/auth/admin/logout' : '/auth/user/logout', { method: 'DELETE' })
 		} catch (_) {}
 
 		authStore.clearAuth()
@@ -1000,5 +1154,140 @@ onUnmounted(() => {
 .modal-fade-enter-from,
 .modal-fade-leave-to {
 	opacity: 0;
+}
+
+/* Telegram Modal Styles */
+.modal-telegram-box {
+	max-width: 440px !important;
+}
+
+.telegram-badge {
+	background: #e0f2fe !important;
+	color: #0284c7 !important;
+}
+
+:global([data-theme="dark"] .telegram-badge) {
+	background: rgba(2, 132, 199, 0.2) !important;
+	color: #38bdf8 !important;
+}
+
+.telegram-link-card {
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	border-radius: 14px;
+	padding: 16px;
+	text-align: left;
+	margin-bottom: 8px;
+}
+
+:global([data-theme="dark"] .telegram-link-card) {
+	background: #1e293b !important;
+	border-color: #334155 !important;
+}
+
+.step-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-size: 13.5px;
+	color: #334155;
+}
+
+:global([data-theme="dark"] .step-row) {
+	color: #e2e8f0 !important;
+}
+
+.step-badge {
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	background: #0284c7;
+	color: #ffffff;
+	font-size: 12px;
+	font-weight: 700;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.step-label {
+	flex: 1;
+}
+
+.telegram-url-input-wrap {
+	display: flex;
+	gap: 6px;
+	margin-top: 8px;
+	margin-bottom: 8px;
+}
+
+.telegram-url-input {
+	flex: 1;
+	height: 38px;
+	border: 1px solid #cbd5e1;
+	border-radius: 8px;
+	padding: 0 10px;
+	font-size: 12.5px;
+	background: #ffffff;
+	color: #475569;
+	font-family: monospace;
+}
+
+:global([data-theme="dark"] .telegram-url-input) {
+	background: #0f172a !important;
+	border-color: #334155 !important;
+	color: #94a3b8 !important;
+}
+
+.btn-copy-link {
+	height: 38px;
+	padding: 0 14px;
+	border-radius: 8px;
+	border: 1px solid #cbd5e1;
+	background: #ffffff;
+	color: #334155;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.btn-copy-link:hover {
+	background: #f1f5f9;
+	border-color: #94a3b8;
+}
+
+:global([data-theme="dark"] .btn-copy-link) {
+	background: #0f172a !important;
+	border-color: #334155 !important;
+	color: #e2e8f0 !important;
+}
+
+.btn-telegram-primary {
+	flex: 1;
+	height: 44px;
+	border-radius: 12px;
+	font-size: 14px;
+	font-weight: 700;
+	cursor: pointer;
+	transition: all 0.15s ease;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	background: #0284c7;
+	border: 0;
+	color: #ffffff;
+	box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+}
+
+.btn-telegram-primary:hover {
+	background: #0369a1;
+}
+
+.btn-telegram-primary:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
 }
 </style>
