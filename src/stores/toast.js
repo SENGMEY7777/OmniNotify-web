@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { playMessageSound, playSuccessSound, playAlertSound } from '@/utils/sound'
+import { playMessageSound, playSuccessSound, playAlertSound, playSecurityAlertSound } from '@/utils/sound'
 
 let nextToastId = 1
 const recentToastKeys = new Set()
@@ -53,7 +53,13 @@ export const useToastStore = defineStore('toast', () => {
     }
 
     if (sound) {
-      if (type === 'success') {
+      const lowerTitle = String(finalTitle).toLowerCase()
+      const lowerMsg = String(finalMessage).toLowerCase()
+      const isSecurity = lowerTitle.includes('security') || lowerTitle.includes('login') || lowerTitle.includes('otp') || lowerTitle.includes('fraud') || lowerTitle.includes('lock') || lowerMsg.includes('security') || lowerMsg.includes('login')
+
+      if (isSecurity) {
+        playSecurityAlertSound()
+      } else if (type === 'success') {
         playSuccessSound()
       } else if (type === 'error' || type === 'warning') {
         playAlertSound()
