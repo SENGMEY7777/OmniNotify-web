@@ -15,6 +15,9 @@
 			<DashboardNavbar />
 			<main class="page-content"><router-view /></main>
 		</section>
+
+		<!-- Recruiter & Developer 1-Click Sandbox Widget -->
+		<DeveloperSandboxWidget />
 	</div>
 </template>
 
@@ -22,6 +25,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import DashboardNavbar from './DashboardNavbar.vue'
 import SidebarDashboard from './SidebarDashboard.vue'
+import DeveloperSandboxWidget from '@/components/common/DeveloperSandboxWidget.vue'
 import { initSocket } from '@/services/socket'
 import { useNotificationStore } from '@/stores/notification'
 import { isMobileSidebarOpen, closeMobileSidebar } from '@/utils/mobileNav'
