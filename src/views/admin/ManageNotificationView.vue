@@ -302,6 +302,40 @@
                             {{ value ? new Date(value).toLocaleString() : '—' }}
                         </span>
                     </template>
+
+                    <!-- Action Column -->
+                    <template #cell-actions="{ row }">
+                        <div class="table-actions-wrap d-flex align-items-center gap-2">
+                            <button
+                                type="button"
+                                class="btn-action-icon btn-action-view"
+                                title="View Details"
+                                @click.stop="openDetailModal(row)"
+                            >
+                                <IconEye :size="16" />
+                            </button>
+                            <button
+                                v-if="row.status === 'PENDING' || row.status === 'QUEUED'"
+                                type="button"
+                                class="btn-action-icon btn-action-cancel"
+                                title="Cancel Pending Notification"
+                                :disabled="cancellingId === (row.notification_id || row.id)"
+                                @click.stop="handleCancelNotification(row)"
+                            >
+                                <IconBan :size="16" />
+                            </button>
+                            <button
+                                type="button"
+                                class="btn-action-icon btn-action-delete"
+                                :class="{ 'btn-action-locked': isSecurityOrFinancialAlert(row) }"
+                                :title="isSecurityOrFinancialAlert(row) ? 'Security & financial records are locked' : 'Archive Notification'"
+                                @click.stop="openDeleteModal(row)"
+                            >
+                                <IconShieldLock v-if="isSecurityOrFinancialAlert(row)" :size="16" />
+                                <IconTrash v-else :size="16" />
+                            </button>
+                        </div>
+                    </template>
                 </BaseTable>
             </div>
 
@@ -318,17 +352,80 @@
                 />
             </div>
         </div>
+
+        <!-- Detail Modal -->
+        <BaseModal
+            v-model:is-open="showDetailModal"
+            :title="activeNotification?.title || 'Notification Details'"
+            :subtitle="activeNotification?.created_at ? new Date(activeNotification.created_at).toLocaleString() : ''"
+            icon="bell"
+            size="md"
+        >
+            <div v-if="activeNotification" class="notification-detail-box">
+                <div class="detail-badge-strip d-flex align-items-center gap-2 mb-3 flex-wrap">
+                    <span class="channel-badge" :class="activeNotification.channel ? activeNotification.channel.toLowerCase().replace(/[^a-z0-9]/g, '_') : ''">
+                        {{ activeNotification.channel }}
+                    </span>
+                    <span class="priority-badge" :class="activeNotification.priority ? activeNotification.priority.toLowerCase() : 'normal'">
+                        {{ activeNotification.priority || 'NORMAL' }}
+                    </span>
+                    <span class="status-badge" :class="activeNotification.status ? activeNotification.status.toLowerCase() : 'pending'">
+                        <span class="status-dot"></span>
+                        {{ activeNotification.status || 'PENDING' }}
+                    </span>
+                </div>
+
+                <div class="detail-message-card p-3 rounded-3 mb-3">
+                    <h6 class="detail-message-label text-muted small mb-2">Message Body</h6>
+                    <p class="detail-message-text mb-0">{{ activeNotification.body || 'No message description available.' }}</p>
+                </div>
+
+                <div class="detail-meta-list small text-muted">
+                    <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span>Recipient</span>
+                        <strong class="text-dark">{{ activeNotification.full_name || activeNotification.recipient || '—' }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span>Event Type</span>
+                        <strong class="text-dark">{{ activeNotification.event_type || 'SYSTEM_ALERT' }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span>Created At</span>
+                        <strong class="text-dark">{{ activeNotification.created_at ? new Date(activeNotification.created_at).toLocaleString() : '—' }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <template #footer-right>
+                <button type="button" class="btn-modal-outline" @click="showDetailModal = false">
+                    Close
+                </button>
+            </template>
+        </BaseModal>
+
+        <!-- Standard Enterprise Delete Confirm Modal -->
+        <DeleteConfirmModal
+            :is-open="showDeleteModal"
+            :notification-title="notificationToDelete?.title"
+            :is-security-alert="isSecurityOrFinancialAlert(notificationToDelete)"
+            :is-admin="true"
+            :deleting="deleting"
+            @close="showDeleteModal = false"
+            @confirm="handleDeleteNotification"
+        />
     </section>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { IconEye, IconTrash, IconShieldLock, IconBan } from '@tabler/icons-vue'
 import BaseTable from '@/components/common/BaseTable.vue'
 import BasePagination from '@/components/common/BasePagination.vue'
 import BaseStateCard from '@/components/common/BaseStateCard.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import DeleteConfirmModal from '@/components/common/DeleteConfirmModal.vue'
 import TablerIcon from '@/components/common/TablerIcon.vue'
-import { get, post, put } from '@/services/api'
+import { get, post, put, del } from '@/services/api'
 import { useNotificationStore } from '@/stores/notification'
 import { useToastStore } from '@/stores/toast'
 
@@ -338,6 +435,12 @@ const rows = ref([])
 const loading = ref(false)
 const submitting = ref(false)
 const showForm = ref(false)
+
+const showDetailModal = ref(false)
+const activeNotification = ref(null)
+const showDeleteModal = ref(false)
+const notificationToDelete = ref(null)
+const deleting = ref(false)
 
 const summaryStats = ref({
     total: 0,
@@ -530,7 +633,88 @@ const columns = [
     { key: 'priority', label: 'Priority' },
     { key: 'status', label: 'Status' },
     { key: 'created_at', label: 'Timestamp' },
+    { key: 'actions', label: 'Actions' },
 ]
+
+const cancellingId = ref('')
+
+function isSecurityOrFinancialAlert(item) {
+    if (!item) return false
+    const type = String(item.event_type || '').toUpperCase()
+    const title = String(item.title || '').toUpperCase()
+    return (
+        type.includes('TRANSACTION') ||
+        type.includes('TRANSFER') ||
+        type.includes('DEPOSIT') ||
+        type.includes('WITHDRAW') ||
+        type.includes('OTP') ||
+        type.includes('LOGIN') ||
+        type.includes('SECURITY') ||
+        title.includes('TRANSACTION') ||
+        title.includes('OTP') ||
+        title.includes('LOGIN') ||
+        title.includes('SECURITY')
+    )
+}
+
+function openDetailModal(row) {
+    activeNotification.value = row
+    showDetailModal.value = true
+}
+
+function openDeleteModal(row) {
+    notificationToDelete.value = row
+    showDeleteModal.value = true
+}
+
+async function handleCancelNotification(row) {
+    if (!row) return
+    const id = row.notification_id || row.id
+    cancellingId.value = id
+    try {
+        await post(`/admin/notification/${id}/cancel`, {})
+        row.status = 'CANCELLED'
+        toast.success('Pending notification campaign cancelled.', 'Cancelled')
+        fetchStats()
+    } catch (err) {
+        toast.error(err.message || 'Failed to cancel notification.')
+    } finally {
+        cancellingId.value = ''
+    }
+}
+
+async function handleDeleteNotification() {
+    if (!notificationToDelete.value) return
+    const target = notificationToDelete.value
+    const id = target.notification_id || target.id
+
+    if (isSecurityOrFinancialAlert(target)) {
+        toast.warning('🔒 Security Record Locked: For banking fraud prevention and audit compliance, financial transactions and security alerts cannot be deleted.', 'Security Record Locked')
+        showDeleteModal.value = false
+        return
+    }
+
+    deleting.value = true
+    try {
+        await del(`/admin/notification/${id}`)
+        rows.value = rows.value.filter(r => (r.notification_id || r.id) !== id)
+        toast.success('Notification archived from active records.', 'Archived')
+        summaryStats.value.total = Math.max(0, summaryStats.value.total - 1)
+        showDeleteModal.value = false
+        notificationToDelete.value = null
+        fetchStats()
+    } catch (err) {
+        if (err.message && err.message.includes('Security Record Locked')) {
+            toast.warning(err.message, 'Security Record Locked')
+        } else {
+            toast.error(err.message || 'Failed to archive notification.')
+        }
+        showDeleteModal.value = false
+        notificationToDelete.value = null
+    } finally {
+        deleting.value = false
+    }
+}
 
 async function fetchStats() {
     try {
@@ -1135,6 +1319,12 @@ onUnmounted(() => {
     border: 1px solid #fecaca;
 }
 
+.status-badge.cancelled {
+    color: #64748b;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+}
+
 .status-badge.retrying {
     color: #d97706;
     background: #fffbeb;
@@ -1145,6 +1335,207 @@ onUnmounted(() => {
     font-size: 13.5px;
     color: #697489;
     white-space: nowrap;
+}
+
+/* Action Buttons */
+.btn-action-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-action-view {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #2563eb;
+}
+
+.btn-action-view:hover {
+    background: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+    transform: scale(1.06);
+}
+
+.btn-action-cancel {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #d97706;
+}
+
+.btn-action-cancel:hover {
+    background: #fef3c7;
+    border-color: #fcd34d;
+    color: #b45309;
+    transform: scale(1.06);
+}
+
+.btn-action-delete {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+}
+
+.btn-action-delete:hover {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+    transform: scale(1.06);
+}
+
+.btn-action-delete.btn-action-locked {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #d97706;
+}
+
+.btn-action-delete.btn-action-locked:hover {
+    background: #fef3c7;
+    border-color: #fcd34d;
+    color: #b45309;
+}
+
+/* Delete Modal Styles */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-dialog-box {
+    width: 100%;
+    max-width: 400px;
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 30px 24px 24px;
+    text-align: center;
+    box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.25);
+}
+
+[data-theme="dark"] .modal-dialog-box {
+    background: #111827 !important;
+    border: 1px solid #1f293d;
+}
+
+.modal-icon-badge {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.delete-badge {
+    background: #fff1f2;
+    color: #f43f5e;
+}
+
+[data-theme="dark"] .delete-badge {
+    background: rgba(244, 63, 94, 0.2) !important;
+    color: #fb7185 !important;
+}
+
+.modal-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 8px;
+}
+
+[data-theme="dark"] .modal-title {
+    color: #f8fafc !important;
+}
+
+.modal-desc {
+    font-size: 13.5px;
+    color: #64748b;
+    line-height: 1.55;
+    margin: 0 0 22px;
+}
+
+[data-theme="dark"] .modal-desc {
+    color: #94a3b8 !important;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-cancel {
+    flex: 1;
+    height: 44px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    border: 0;
+    color: #475569;
+}
+
+[data-theme="dark"] .btn-cancel {
+    background: #1e293b !important;
+    color: #cbd5e1 !important;
+}
+
+.btn-confirm-delete {
+    flex: 1;
+    height: 44px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f43f5e;
+    border: 0;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3);
+}
+
+.btn-confirm-delete:hover {
+    background: #e11d48;
+}
+
+.btn-confirm-delete:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.detail-message-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.btn-modal-outline {
+    padding: 9px 18px;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #475569;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
 }
 
 /* Transitions */
@@ -1167,5 +1558,15 @@ onUnmounted(() => {
 .expand-leave-to {
     opacity: 0;
     transform: translateY(-8px);
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+    opacity: 0;
 }
 </style>
