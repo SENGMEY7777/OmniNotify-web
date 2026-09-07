@@ -203,13 +203,15 @@ async function loadDashboard() {
         const totalCount = Number(summary.total || 0)
         const deliveredCount = Number(summary.delivered || 0)
         const failedCount = Number(summary.failed || 0)
-        const userCount = Number((users.users || []).length)
+        const userCount = (users.users || []).filter((user) => (
+            Boolean(user.is_active) && Boolean(user.status)
+        )).length
 
         stats.value[0].value = formatNumber(totalCount)
         stats.value[0].change = '+11.2%'
 
         stats.value[1].value = formatNumber(deliveredCount)
-        const deliveredRate = totalCount > 0 ? ((deliveredCount / totalCount) * 100).toFixed(1) : '94.1'
+        const deliveredRate = totalCount > 0 ? ((deliveredCount / totalCount) * 100).toFixed(1) : '0.0'
         stats.value[1].change = `+${deliveredRate}%`
 
         stats.value[2].value = formatNumber(userCount)
