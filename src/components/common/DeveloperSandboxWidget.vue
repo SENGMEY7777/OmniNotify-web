@@ -1,5 +1,5 @@
 <template>
-  <div class="developer-sandbox-widget">
+  <div v-if="authStore.isAdmin" class="developer-sandbox-widget">
     <!-- Floating Trigger Button -->
     <button
       v-if="!isOpen"
@@ -308,7 +308,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { playMessageSound, playSuccessSound, playAlertSound } from '@/utils/sound'
 import { useToastStore } from '@/stores/toast'
 import { useNotificationStore } from '@/stores/notification'
@@ -366,6 +366,15 @@ onMounted(() => {
   if (authStore.isAdmin) {
     fetchDefaultTemplate()
   }
+  window.addEventListener('open-developer-sandbox', openSandbox)
+})
+
+function openSandbox() {
+  if (authStore.isAdmin) isOpen.value = true
+}
+
+onUnmounted(() => {
+  window.removeEventListener('open-developer-sandbox', openSandbox)
 })
 
 function setTransactionPreset(amount, type, channel) {
