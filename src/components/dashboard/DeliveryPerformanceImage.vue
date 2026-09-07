@@ -28,6 +28,9 @@
             aria-label="Live weekly notification performance chart"
             @mouseleave="onMouseLeave"
         >
+            <div v-if="!hasData" class="chart-empty-state">
+                No notification delivery data for this period.
+            </div>
             <svg viewBox="0 0 1200 480" preserveAspectRatio="none">
                 <defs>
                     <!-- Area luminous gradient with live breathing animation -->
@@ -291,34 +294,15 @@ const chartPoints = computed(() => {
         if (hasData) {
             return weeklyData.map((m) => {
                 const rate = m.total > 0 ? Math.round((m.delivered / m.total) * 100) : 0
-                return {
-                    ...m,
-                    rate,
-                    value: rate > 0 ? rate : (m.total > 0 ? 50 : 0)
-                }
+                return { ...m, rate, value: rate }
             })
         }
     }
 
-    // Default professional sample data across Mon-Sun
-    const sampleTotals = [54, 62, 78, 65, 84, 42, 38]
-    const sampleDelivered = [52, 60, 75, 63, 81, 40, 36]
-
-    return weeklyData.map((m, index) => {
-        const total = sampleTotals[index]
-        const delivered = sampleDelivered[index]
-        const rate = Math.round((delivered / total) * 100)
-        return {
-            ...m,
-            total,
-            delivered,
-            pending: Math.max(0, Math.round((total - delivered) * 0.4)),
-            failed: Math.max(0, Math.round((total - delivered) * 0.6)),
-            rate,
-            value: rate
-        }
-    })
+    return weeklyData
 })
+
+const hasData = computed(() => chartPoints.value.some((point) => point.total > 0))
 
 watch(() => chartPoints.value.length, (len) => {
     if (len > 0) {
@@ -329,10 +313,10 @@ watch(() => chartPoints.value.length, (len) => {
 
 const averageRate = computed(() => {
     const valid = chartPoints.value.filter((p) => p.total > 0)
-    if (!valid.length) return '98.5'
+    if (!valid.length) return '0.0'
     const totalDelivered = valid.reduce((sum, p) => sum + p.delivered, 0)
     const totalAll = valid.reduce((sum, p) => sum + p.total, 0)
-    return totalAll > 0 ? ((totalDelivered / totalAll) * 100).toFixed(1) : '98.5'
+    return totalAll > 0 ? ((totalDelivered / totalAll) * 100).toFixed(1) : '0.0'
 })
 
 const colWidth = computed(() => {
@@ -573,6 +557,17 @@ const popupStyle = computed(() => {
     margin-top: 10px;
     position: relative;
     overflow: visible;
+}
+
+.chart-empty-state {
+    position: absolute;
+    inset: 42% 0 auto;
+    z-index: 1;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 14px;
+    font-weight: 600;
+    pointer-events: none;
 }
 
 svg {
