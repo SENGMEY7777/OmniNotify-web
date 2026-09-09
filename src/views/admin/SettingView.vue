@@ -11,9 +11,6 @@
                 <div class="card settings-card p-4">
                     <h3 class="card-section-title mb-3">Admin Profile</h3>
 
-                    <div v-if="message" class="alert mb-4" :class="ok ? 'alert-success' : 'alert-danger'">
-                        {{ message }}
-                    </div>
 
                     <form @submit.prevent="save">
                         <!-- Avatar Section -->
