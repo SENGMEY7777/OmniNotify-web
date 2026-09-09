@@ -91,7 +91,7 @@
 
                     <!-- IP Address Slot -->
                     <template #cell-ip_address="{ value, row }">
-                        <span class="ip-text">{{ value || row.ip_address || row.ip || '127.0.0.1' }}</span>
+                        <span class="ip-text">{{ formatIp(value || row.ip_address || row.ip) }}</span>
                     </template>
 
                     <!-- Timestamp Slot -->
@@ -224,6 +224,14 @@ function formatEntityName(entity) {
     if (!entity) return 'System'
     const name = String(entity).replace(/_/g, ' ').toLowerCase()
     return name.charAt(0).toUpperCase() + name.slice(1)
+}
+
+function formatIp(value) {
+    const ip = String(value || '').trim()
+    if (!ip) return 'unknown'
+    if (ip === '::1') return '127.0.0.1'
+    if (ip.startsWith('::ffff:')) return ip.slice(7)
+    return ip
 }
 
 function getEntityIcon(entity) {
