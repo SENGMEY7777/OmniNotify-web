@@ -106,7 +106,6 @@
                                 <span class="event-title">{{ value || row.event_type }}</span>
                                 <span v-if="!isRowRead(row)" class="unread-bullet" title="Unread alert"></span>
                             </div>
-                            <p v-if="row.body" class="event-body-preview">{{ row.body }}</p>
                         </div>
                     </template>
 
@@ -169,11 +168,12 @@
                             <button
                                 type="button"
                                 class="btn-action-icon btn-action-delete"
-                                :class="{ 'btn-action-locked': isSecurityAlert(row) }"
-                                :title="isSecurityAlert(row) ? 'Security alert locked' : 'Remove from inbox'"
+                                :class="{ 'btn-action-locked': isSecurityAlert(row) || !isRowRead(row) }"
+                                :disabled="!isRowRead(row) || deleting"
+                                :title="isSecurityAlert(row) ? 'Security alert locked' : !isRowRead(row) ? 'Mark as read before deleting' : 'Remove from inbox'"
                                 @click.stop="openDeleteModal(row)"
                             >
-                                <IconShieldLock v-if="isSecurityAlert(row)" :size="16" />
+                                <IconShieldLock v-if="isSecurityAlert(row) || !isRowRead(row)" :size="16" />
                                 <IconTrash v-else :size="16" />
                             </button>
                         </div>
@@ -204,12 +204,12 @@
             size="md"
         >
             <div v-if="activeNotification" class="notification-detail-box">
-                <div class="detail-badge-strip d-flex align-items-center gap-2 mb-3 flex-wrap">
+                <div class="core-banking-badges d-flex align-items-center gap-2 mb-3 flex-wrap">
                     <span class="channel-badge" :class="activeNotification.channel ? activeNotification.channel.toLowerCase().replace(/[^a-z0-9]/g, '_') : ''">
                         {{ activeNotification.channel }}
                     </span>
                     <span class="priority-badge" :class="activeNotification.priority ? activeNotification.priority.toLowerCase() : 'normal'">
-                        {{ activeNotification.priority || 'NORMAL' }}
+                        <span class="badge-dot"></span>{{ activeNotification.priority || 'NORMAL' }}
                     </span>
                     <span class="status-badge" :class="isRowRead(activeNotification) ? 'read' : 'delivered'">
                         <span class="status-dot"></span>
@@ -217,25 +217,35 @@
                     </span>
                 </div>
 
-                <div class="detail-message-card p-3 rounded-3 mb-3">
-                    <h6 class="detail-message-label text-muted small mb-2">Message Body</h6>
-                    <p class="detail-message-text mb-0">{{ activeNotification.body || 'No message description available.' }}</p>
+                <div class="core-banking-details">
+                    <div class="core-detail-row">
+                        <span>Account holder</span>
+                        <strong>{{ authStore.user?.full_name || '—' }}</strong>
+                    </div>
+                    <div class="core-detail-row">
+                        <span>Email</span>
+                        <strong>{{ authStore.user?.email || '—' }}</strong>
+                    </div>
+                    <div class="core-detail-row">
+                        <span>Device</span>
+                        <strong>{{ activeNotification.device || activeNotification.metadata?.device || 'Unknown' }}</strong>
+                    </div>
+                    <div class="core-detail-row">
+                        <span>IP address</span>
+                        <strong>{{ activeNotification.ip_address || activeNotification.metadata?.ip_address || 'unknown' }}</strong>
+                    </div>
+                    <div class="core-detail-row">
+                        <span>Event</span>
+                        <strong>{{ activeNotification.event_type || 'SYSTEM_ALERT' }}</strong>
+                    </div>
                 </div>
 
-                <div class="detail-meta-list small text-muted">
-                    <div class="d-flex justify-content-between py-1 border-bottom">
-                        <span>Event Type</span>
-                        <strong class="text-dark">{{ activeNotification.event_type || 'SYSTEM_ALERT' }}</strong>
-                    </div>
-                    <div class="d-flex justify-content-between py-1 border-bottom">
-                        <span>Received At</span>
-                        <strong class="text-dark">{{ activeNotification.created_at ? new Date(activeNotification.created_at).toLocaleString() : '—' }}</strong>
-                    </div>
-                    <div v-if="activeNotification.read_at" class="d-flex justify-content-between py-1 border-bottom">
-                        <span>Read At</span>
-                        <strong class="text-emerald">{{ new Date(activeNotification.read_at).toLocaleString() }}</strong>
-                    </div>
+                <div v-if="isSecurityAlert(activeNotification)" class="security-review-note">
+                    <TablerIcon name="shield-lock" size="20" />
+                    <span>If you do not recognize this activity, secure your account and change your password immediately.</span>
                 </div>
+
+                <div class="alert-reference">Alert ID · {{ activeNotification.notification_id || '—' }}</div>
             </div>
 
             <template #footer-right>
@@ -243,13 +253,13 @@
                     Close
                 </button>
                 <button
-                    v-if="!isRowRead(activeNotification)"
                     type="button"
-                    class="btn-modal-primary"
+                    class="btn btn-primary-custom"
+                    :disabled="isRowRead(activeNotification)"
                     @click="markActiveAsRead"
                 >
                     <TablerIcon name="check" size="16" />
-                    <span>Mark as Read</span>
+                    <span>{{ isRowRead(activeNotification) ? 'Reviewed' : 'Mark as reviewed' }}</span>
                 </button>
             </template>
         </BaseModal>
@@ -278,9 +288,11 @@ import TablerIcon from '@/components/common/TablerIcon.vue'
 import { get, apiRequest } from '@/services/api'
 import { useNotificationStore } from '@/stores/notification'
 import { useToastStore } from '@/stores/toast'
+import { useAuthStore } from '@/stores/auth'
 
 const notifStore = useNotificationStore()
 const toast = useToastStore()
+const authStore = useAuthStore()
 
 const rows = ref([])
 const loading = ref(false)
@@ -545,9 +557,15 @@ async function handleDeleteNotification() {
         return
     }
 
+    if (!isRowRead(target)) {
+        toast.warning('Unread notifications cannot be deleted. Mark the notification as read first.', 'Unread Notification Locked')
+        showDeleteModal.value = false
+        return
+    }
+
     deleting.value = true
     try {
-        await apiRequest(`/auth/user/notifications/${target.notification_id}`, { method: 'DELETE' }).catch(() => {})
+        await apiRequest(`/auth/user/notifications/${target.notification_id}`, { method: 'DELETE' })
         rows.value = rows.value.filter((r) => r.notification_id !== target.notification_id)
         
         toast.success('Notification removed from inbox.', 'Removed')
@@ -560,11 +578,10 @@ async function handleDeleteNotification() {
         showDeleteModal.value = false
         notificationToDelete.value = null
     } catch (err) {
-        if (err.message && err.message.includes('Security Record Locked')) {
+        if (err.message && (err.message.includes('Security Record Locked') || err.message.includes('Unread notifications cannot be deleted'))) {
             toast.warning(err.message, 'Security Locked')
         } else {
-            rows.value = rows.value.filter((r) => r.notification_id !== target.notification_id)
-            toast.success('Notification removed from inbox.', 'Removed')
+            toast.error(err.message || 'Notification could not be deleted.', 'Delete Failed')
         }
         showDeleteModal.value = false
         notificationToDelete.value = null
@@ -934,6 +951,100 @@ onUnmounted(() => {
     border: 1px solid #e2e8f0;
 }
 
+.core-banking-badges .channel-badge,
+.core-banking-badges .priority-badge,
+.core-banking-badges .status-badge {
+    min-height: 38px;
+    padding: 7px 14px;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.core-banking-badges .priority-badge {
+    color: #b42318;
+    background: #fff1f0;
+    border: 1px solid #f5b7b1;
+}
+
+.core-banking-badges .badge-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.core-banking-message {
+    padding: 18px 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.core-banking-message .detail-message-label {
+    margin-bottom: 8px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.core-banking-message .detail-message-text {
+    color: #1e293b;
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+.core-banking-details {
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.core-detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.core-detail-row:last-child { border-bottom: 0; }
+.core-detail-row strong {
+    color: #172033;
+    font-weight: 400;
+    text-align: right;
+}
+
+.security-review-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 17px 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    color: #334155;
+    background: #f8fafc;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.security-review-note :deep(svg) { color: #b42318; flex: 0 0 auto; }
+
+.alert-reference {
+    margin-top: 18px;
+    color: #64748b;
+    font-size: 13px;
+    letter-spacing: .01em;
+}
+
 .btn-modal-outline {
     padding: 9px 18px;
     border-radius: 10px;
@@ -952,7 +1063,7 @@ onUnmounted(() => {
     padding: 9px 18px;
     border-radius: 10px;
     border: 0;
-    background: #8751ff;
+    background: #194b7a;
     color: #ffffff;
     font-weight: 700;
     font-size: 14px;
