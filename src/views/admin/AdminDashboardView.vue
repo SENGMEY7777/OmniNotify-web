@@ -131,10 +131,10 @@ const isDateFiltered = ref(false)
 const filterDateLabel = ref('')
 
 const stats = ref([
-    { label: 'Total notifications', value: '—', change: '+11.2%', changeTone: 'positive', icon: 'arrow', tone: 'purple' },
-    { label: 'Delivered successfully', value: '—', change: '+94.1%', changeTone: 'positive', icon: 'check', tone: 'green' },
-    { label: 'Active users', value: '—', change: '+8.3%', changeTone: 'positive', icon: 'users', tone: 'blue' },
-    { label: 'Failed deliveries', value: '—', change: '-0.0%', changeTone: 'negative', icon: 'alert', tone: 'red' },
+    { label: 'Total notifications', value: '—', change: '—', changeTone: 'neutral', icon: 'arrow', tone: 'purple' },
+    { label: 'Delivered successfully', value: '—', change: '—', changeTone: 'positive', icon: 'check', tone: 'green' },
+    { label: 'Active users', value: '—', change: '—', changeTone: 'neutral', icon: 'users', tone: 'blue' },
+    { label: 'Failed deliveries', value: '—', change: '—', changeTone: 'negative', icon: 'alert', tone: 'red' },
 ])
 const activityColumns = [
     { key: 'event', label: 'Event & Title' },
@@ -193,10 +193,9 @@ async function loadDashboard() {
             dashboardUrl = `/admin/notification/dashboard?from=${from}&to=${to}`
         }
 
-        const [dashboard, notifications, channelStats, users] = await Promise.all([
+        const [dashboard, notifications, users] = await Promise.all([
             get(dashboardUrl),
             get('/admin/notification?page=1&limit=8'),
-            get('/admin/notification/stats'),
             get('/auth/admin/getAll')
         ])
         const summary = dashboard.summary || dashboard
@@ -208,20 +207,20 @@ async function loadDashboard() {
         )).length
 
         stats.value[0].value = formatNumber(totalCount)
-        stats.value[0].change = '+11.2%'
+        stats.value[0].change = 'Selected period'
 
         stats.value[1].value = formatNumber(deliveredCount)
         const deliveredRate = totalCount > 0 ? ((deliveredCount / totalCount) * 100).toFixed(1) : '0.0'
-        stats.value[1].change = `+${deliveredRate}%`
+        stats.value[1].change = `${deliveredRate}% of total`
 
         stats.value[2].value = formatNumber(userCount)
-        stats.value[2].change = '+8.3%'
+        stats.value[2].change = 'Current total'
 
         stats.value[3].value = formatNumber(failedCount)
         const failedRate = totalCount > 0 ? ((failedCount / totalCount) * 100).toFixed(1) : '0.0'
-        stats.value[3].change = `-${failedRate}%`
+        stats.value[3].change = `${failedRate}% of total`
         activityData.value = dashboard.activity || []
-        channels.value = (channelStats.channels || []).map((item) => ({
+        channels.value = (dashboard.channels || []).map((item) => ({
             name: item.channel,
             count: Number(item.count !== undefined ? item.count : (item.total || 0)),
             percentage: Number(item.percentage || 0),
