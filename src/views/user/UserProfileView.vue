@@ -223,6 +223,39 @@
                         <span>{{ telegramLoading ? 'Connecting...' : 'Connect Telegram Bot' }}</span>
                     </button>
                 </div>
+
+                <!-- Connected Devices Card -->
+                <div id="devices" class="card settings-card p-4 mt-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-1">Connected Devices</h5>
+                            <p class="text-muted small mb-0">Manage browsers signed in to your account.</p>
+                        </div>
+                        <TablerIcon name="device-desktop" size="22" class="text-primary" />
+                    </div>
+
+                    <div v-if="devicesLoading" class="text-muted small">Loading devices...</div>
+                    <div v-else-if="devices.length === 0" class="text-muted small">No connected devices found.</div>
+                    <div v-else class="device-list">
+                        <div v-for="device in devices" :key="device.device_id" class="device-row">
+                            <div class="d-flex align-items-center gap-2 min-width-0">
+                                <span class="device-status-dot" :class="device.is_active ? 'active' : ''"></span>
+                                <div class="min-width-0">
+                                    <strong class="device-name text-truncate d-block">{{ device.device_type || 'Unknown device' }}</strong>
+                                    <span class="device-last-seen">{{ device.is_active ? 'Active now' : formatDeviceDate(device.last_seen_at) }}</span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-danger"
+                                :disabled="revokingDeviceId === device.device_id"
+                                @click="revokeDevice(device)"
+                            >
+                                {{ revokingDeviceId === device.device_id ? '...' : 'Revoke' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -265,6 +298,9 @@ const avatarLoading = ref(false)
 const telegramLoading = ref(false)
 const message = ref('')
 const ok = ref(false)
+const devices = ref([])
+const devicesLoading = ref(false)
+const revokingDeviceId = ref('')
 
 async function loadProfile() {
     try {
@@ -298,7 +334,43 @@ async function loadProfile() {
     }
 }
 
-onMounted(loadProfile)
+onMounted(() => {
+    loadProfile()
+    loadDevices()
+})
+
+async function loadDevices() {
+    devicesLoading.value = true
+    try {
+        const res = await get('/auth/user/devices')
+        devices.value = Array.isArray(res) ? res : (res?.data || res?.devices || [])
+    } catch (_) {
+        devices.value = []
+    } finally {
+        devicesLoading.value = false
+    }
+}
+
+function formatDeviceDate(value) {
+    if (!value) return 'Last seen unknown'
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? 'Last seen unknown' : `Last seen ${date.toLocaleString()}`
+}
+
+async function revokeDevice(device) {
+    if (!device?.device_id) return
+    revokingDeviceId.value = device.device_id
+    try {
+        await del(`/auth/user/devices/${encodeURIComponent(device.device_id)}`)
+        device.is_active = 0
+        device.socket_id = null
+        toast.success('Device revoked successfully.')
+    } catch (e) {
+        toast.error(e.message || 'Could not revoke device.')
+    } finally {
+        revokingDeviceId.value = ''
+    }
+}
 
 async function save() {
     loading.value = true
@@ -469,6 +541,47 @@ async function connectTelegram() {
     border: 1px solid #e2e8f0;
     background: #ffffff;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.device-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.device-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid #e7e9ef;
+    border-radius: 10px;
+    background: #fafbff;
+}
+
+.device-status-dot {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    border-radius: 50%;
+    background: #94a3b8;
+}
+
+.device-status-dot.active {
+    background: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+}
+
+.device-name {
+    max-width: 175px;
+    color: #172033;
+    font-size: 13px;
+}
+
+.device-last-seen {
+    color: #7b8498;
+    font-size: 11px;
 }
 
 .settings-card .btn-primary {

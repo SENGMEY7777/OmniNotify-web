@@ -6,6 +6,33 @@ import { useNotificationStore } from '@/stores/notification'
 
 let socket = null
 
+function getDeviceId() {
+  const key = 'omninotify-device-id'
+  let deviceId = localStorage.getItem(key)
+  if (!deviceId) {
+    deviceId = typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `device-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    localStorage.setItem(key, deviceId)
+  }
+  return deviceId
+}
+
+function getDeviceType() {
+  if (typeof navigator === 'undefined') return 'Unknown device'
+  const ua = navigator.userAgent
+  const browser = ua.includes('Edg/') ? 'Edge'
+    : ua.includes('Chrome/') ? 'Chrome'
+      : ua.includes('Firefox/') ? 'Firefox'
+        : ua.includes('Safari/') ? 'Safari' : 'Browser'
+  const os = ua.includes('Windows') ? 'Windows'
+    : ua.includes('Android') ? 'Android'
+      : ua.includes('iPhone') || ua.includes('iPad') ? 'iOS'
+        : ua.includes('Mac OS') ? 'macOS'
+          : ua.includes('Linux') ? 'Linux' : 'Unknown OS'
+  return `${browser} / ${os}`
+}
+
 export function getSocket() {
   return socket
 }
@@ -33,8 +60,8 @@ export function initSocket(forceReconnect = false) {
   const socketUrl = apiBase.replace(/\/api\/?$/, '')
 
   socket = io(socketUrl, {
-    auth: { token },
-    query: { token },
+    auth: { token, device_id: getDeviceId(), device_type: getDeviceType() },
+    query: { token, device_id: getDeviceId(), device_type: getDeviceType() },
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 10,
