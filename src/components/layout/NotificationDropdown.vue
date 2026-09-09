@@ -81,6 +81,9 @@
               <span v-if="item.channel" class="channel-pill" :class="item.channel.toLowerCase().replace(/[^a-z0-9]/g, '_')">
                 {{ item.channel }}
               </span>
+              <span v-if="item.priority" class="priority-pill" :class="item.priority.toLowerCase()">
+                {{ item.priority }}
+              </span>
             </div>
           </div>
         </div>
@@ -133,6 +136,7 @@ const defaultSamples = [
     id: 'sample-1',
     type: 'transfer',
     channel: 'TELEGRAM',
+    priority: 'HIGH',
     title: 'Telegram Alert: Money transferred',
     description: 'Your transfer of $1,250 to Alex Morgan has been completed.',
     time: '5m ago',
@@ -144,6 +148,7 @@ const defaultSamples = [
     id: 'sample-2',
     type: 'sms',
     channel: 'SMS',
+    priority: 'HIGH',
     title: 'SMS OTP Code',
     description: 'Your verification code is 849201. Valid for 5 minutes.',
     time: '10m ago',
@@ -155,6 +160,7 @@ const defaultSamples = [
     id: 'sample-3',
     type: 'email',
     channel: 'EMAIL',
+    priority: 'NORMAL',
     title: 'Email Statement Ready',
     description: 'Your monthly banking account statement for August is now available.',
     time: '25m ago',
@@ -166,6 +172,7 @@ const defaultSamples = [
     id: 'sample-4',
     type: 'push',
     channel: 'PUSH',
+    priority: 'HIGH',
     title: 'Push Notification: Security alert',
     description: 'New login detected from Chrome on macOS.',
     time: '1h ago',
@@ -269,6 +276,7 @@ async function fetchNotifications() {
           title: n.title || 'Notification',
           description: n.body || n.message || '',
           channel: n.channel || 'IN_APP',
+          priority: String(n.priority || 'NORMAL').toUpperCase(),
           time: formatTimeAgo(n.created_at),
           read: isRead,
           tone: style.tone,
@@ -756,6 +764,33 @@ onUnmounted(() => {
 .channel-pill.in-app {
   background: #f1f5f9;
   color: #475569;
+}
+
+.priority-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1.5px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.priority-pill.critical,
+.priority-pill.high {
+  background: #fff1f2;
+  color: #dc2626;
+}
+
+.priority-pill.normal {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.priority-pill.low {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 /* Empty State */
