@@ -55,6 +55,26 @@
           </button>
         </div>
 
+        <div class="mb-3">
+          <label class="field-label">Recipient Phone Number</label>
+          <select
+            v-model="recipientPhone"
+            class="clean-select"
+            :disabled="loadingRecipients"
+          >
+            <option value="" disabled>
+              {{ loadingRecipients ? 'Loading users...' : 'Select a user phone number' }}
+            </option>
+            <option
+              v-for="recipient in recipients"
+              :key="recipient.user_id || recipient.id || recipient.phone_number"
+              :value="recipient.phone_number"
+            >
+              {{ recipient.full_name || recipient.name || 'User' }} — {{ recipient.phone_number }}
+            </option>
+          </select>
+        </div>
+
         <!-- Modern Segmented Tabs -->
         <div class="segmented-tabs">
           <button
@@ -309,9 +329,8 @@
 
 <script setup>
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
-import { playMessageSound, playSuccessSound, playAlertSound } from '@/utils/sound'
+import { playMessageSound } from '@/utils/sound'
 import { useToastStore } from '@/stores/toast'
-import { useNotificationStore } from '@/stores/notification'
 import { useAuthStore } from '@/stores/auth'
 import { get, post, apiRequest } from '@/services/api'
 
@@ -321,10 +340,12 @@ const sending = ref(false)
 const soundEnabled = ref(true)
 const activeTab = ref('transaction')
 const cachedTemplateId = ref('')
+const recipients = ref([])
+const loadingRecipients = ref(false)
 
 const toast = useToastStore()
-const notifStore = useNotificationStore()
 const authStore = useAuthStore()
+const recipientPhone = ref('')
 
 // 1. Transaction Form State
 const transactionForm = reactive({
@@ -362,9 +383,28 @@ async function fetchDefaultTemplate() {
   } catch (_) {}
 }
 
+async function fetchRecipients() {
+  loadingRecipients.value = true
+  try {
+    const res = await get('/auth/admin/getAll')
+    const list = res?.users || res?.data || res || []
+    recipients.value = Array.isArray(list)
+      ? list.filter(user => String(user.role || '').toLowerCase() === 'user' && user.phone_number)
+      : []
+    if (!recipientPhone.value && recipients.value.length) {
+      recipientPhone.value = recipients.value[0].phone_number
+    }
+  } catch (_) {
+    recipients.value = []
+  } finally {
+    loadingRecipients.value = false
+  }
+}
+
 onMounted(() => {
   if (authStore.isAdmin) {
     fetchDefaultTemplate()
+    fetchRecipients()
   }
   window.addEventListener('open-developer-sandbox', openSandbox)
 })
@@ -405,80 +445,51 @@ async function openTelegramConnect() {
 async function dispatchLiveNotification(data) {
   sending.value = true
 
-  // 1. Play Audio Tone if enabled
-  if (soundEnabled.value) {
-    if (data.soundType === 'success') {
-      playSuccessSound()
-    } else if (data.soundType === 'alert') {
-      playAlertSound()
-    } else {
-      playMessageSound()
-    }
-  }
-
-  // 2. Trigger Toast Popup
-  toast.addToast({
-    type: data.toastType || 'info',
-    title: data.title,
-    message: data.body,
-    duration: 7000,
-    sound: false
-  })
-
   let serverNotif = null
 
   // 3. Backend API Call (Dispatches real delivery for Telegram, SMS, Email, and In-App)
   try {
+    const selectedRecipient = recipients.value.find(
+      recipient => String(recipient.phone_number) === String(recipientPhone.value)
+    )
     const res = await post('/auth/user/notifications/simulate', {
       event_type: data.event_type,
+      template_id: cachedTemplateId.value || undefined,
       title: data.title,
       body: data.body,
       channel: data.channel,
-      priority: data.priority
+      priority: data.priority,
+      phone_number: recipientPhone.value.trim(),
+      recipient_user_id: selectedRecipient?.user_id || selectedRecipient?.id || ''
     })
     serverNotif = res?.data || res
+    // The target user's dashboard receives the live event from the server.
+    // Keep only a confirmation toast on the admin sandbox screen.
+    if (soundEnabled.value) playMessageSound()
+    const wasDelivered = String(serverNotif?.status || '').toUpperCase() !== 'FAILED'
+    toast.addToast({
+      type: wasDelivered ? (data.toastType || 'info') : 'warning',
+      title: wasDelivered ? data.title : 'Dashboard alert saved, external delivery failed',
+        message: wasDelivered
+        ? 'Notification queued for the selected user dashboard and delivery channel.'
+        : (serverNotif?.metadata?.delivery_error || 'The user dashboard can still view this failed delivery.'),
+      duration: 6000,
+      sound: false
+    })
     if (res?.result || res?.success) {
       if (data.channel === 'TELEGRAM') {
-        toast.success('Sent to your Telegram bot successfully! ✈️', 'Telegram Delivered')
+        toast.success('Queued for your Telegram bot! ✈️', 'Telegram Delivery Queued')
       }
     }
   } catch (err) {
     if (data.channel === 'TELEGRAM') {
       toast.warning(err.message || "Please click 'Link Bot' above and tap START in Telegram to receive alerts!", 'Telegram Not Linked')
     } else {
-      console.warn('Sandbox backend simulation notice:', err.message)
+      toast.error(err.message || 'The notification could not be delivered.', 'Notification Failed')
     }
   }
 
-  // 4. Build Payload
-  const notificationId = serverNotif?.notification_id || `sandbox_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
-  const notifPayload = {
-    notification_id: notificationId,
-    id: notificationId,
-    title: data.title,
-    body: data.body,
-    event_type: data.event_type || 'SYSTEM_ALERT',
-    channel: data.channel || 'IN_APP',
-    priority: data.priority || 'NORMAL',
-    status: 'DELIVERED',
-    read_at: null,
-    created_at: serverNotif?.created_at || new Date().toISOString(),
-    _toastShown: true
-  }
-
-  // 5. Increment Pinia Notification Counter
-  notifStore.incrementUnread(notifPayload)
-
-  // 6. Broadcast to Event Listeners (Tables, Charts, Navbar)
-  window.dispatchEvent(
-    new CustomEvent('new-notification', {
-      detail: notifPayload
-    })
-  )
-
-  setTimeout(() => {
-    sending.value = false
-  }, 350)
+  sending.value = false
 }
 
 function formatCurrentTime() {
@@ -512,11 +523,11 @@ function sendTransactionTest() {
         `Dear Valued Customer,`,
         `Your account has been successfully credited with funds:`,
         ``,
-        `• Account: ${accountMask} (USD)`,
-        `• Amount: +${amountStr}`,
-        `• Channel: Transfer / KHQR`,
-        `• Date & Time: ${timeStr}`,
-        `• Ref ID: ${refId}`,
+        `🏦 Account: ${accountMask} (USD)`,
+        `💰 Amount: +${amountStr}`,
+        `📲 Channel: Transfer / KHQR`,
+        `🕒 Date & Time: ${timeStr}`,
+        `🧾 Ref ID: ${refId}`,
         ``,
         `Thank you for banking with OmniNotify Bank.`
       ].join('\n')
@@ -524,10 +535,10 @@ function sendTransactionTest() {
         `Dear Valued Customer,`,
         `A payment was debited from your account:`,
         ``,
-        `• Account: ${accountMask} (USD)`,
-        `• Amount: -${amountStr}`,
-        `• Date & Time: ${timeStr}`,
-        `• Ref ID: ${refId}`,
+        `🏦 Account: ${accountMask} (USD)`,
+        `💰 Amount: -${amountStr}`,
+        `🕒 Date & Time: ${timeStr}`,
+        `🧾 Ref ID: ${refId}`,
         ``,
         `If you did not authorize this transaction, please freeze your card or contact Support immediately.`
       ].join('\n')
