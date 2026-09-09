@@ -58,6 +58,13 @@ export function initSocket(forceReconnect = false) {
     // Normalize: some backends wrap in { data: {...} } or { notification: {...} }
     const payload = data.data || data.notification || data
 
+    const isLoginNotification = payload.event_type === 'USER_LOGIN'
+      || payload.type === 'USER_LOGIN'
+      || String(payload.title || '').toLowerCase().includes('security')
+      || String(payload.title || '').toLowerCase().includes('login')
+    const suppressLoginToastUntil = Number(sessionStorage.getItem('omni-login-toast-suppression-until') || 0)
+    const suppressJustCompletedLogin = isLoginNotification && Date.now() < suppressLoginToastUntil
+
     const id = payload.notification_id || payload.id || payload.metadata?.ref_id
       || `${payload.title}_${payload.body}_${payload.created_at || Date.now()}`
 
@@ -69,16 +76,21 @@ export function initSocket(forceReconnect = false) {
 
     console.log('[Socket.IO] Incoming notification received:', payload)
 
-    // Increment reactive notification store count
-    try {
-      const notifStore = useNotificationStore()
-      notifStore.incrementUnread(payload)
-    } catch (_) {}
+    // Keep the record available in history, but don't count the same login
+    // security alert as a new popup notification immediately after sign-in.
+    if (!suppressJustCompletedLogin) {
+      try {
+        const notifStore = useNotificationStore()
+        notifStore.incrementUnread(payload)
+      } catch (_) {}
+    }
 
     // Dispatch custom DOM event for NotificationDropdown and Navbar
-    window.dispatchEvent(new CustomEvent('new-notification', {
-      detail: { ...payload, _toastShown: true }
-    }))
+    if (!suppressJustCompletedLogin) {
+      window.dispatchEvent(new CustomEvent('new-notification', {
+        detail: { ...payload, _toastShown: true }
+      }))
+    }
 
     // Only show toast popup for fresh/live notifications (not historical notifications replayed on socket connect)
     if (payload.created_at) {
@@ -91,7 +103,8 @@ export function initSocket(forceReconnect = false) {
     // Play chime sound and show toast popup
     try {
       const toast = useToastStore()
-      const isLogin = payload.event_type === 'USER_LOGIN' || payload.type === 'USER_LOGIN' || String(payload.title || '').toLowerCase().includes('security') || String(payload.title || '').toLowerCase().includes('login')
+      const isLogin = isLoginNotification
+      if (suppressJustCompletedLogin) return
       toast.addToast({
         type: isLogin ? 'warning' : (payload.priority === 'HIGH' || payload.priority === 'CRITICAL' ? 'warning' : 'info'),
         title: payload.title || (isLogin ? '🔐 Security Alert: User Login' : '🔔 New Notification'),
