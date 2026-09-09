@@ -161,6 +161,9 @@ async function submit() {
 
     // Sync Pinia Stores
     authStore.setAuth(data.token, data.user)
+    // Keep the login security record in history, but avoid showing the same
+    // successful login twice as a toast after the user has just signed in.
+    sessionStorage.setItem('omni-login-toast-suppression-until', String(Date.now() + 15000))
     initSocket(true)
     notifStore.startPolling()   // immediate fetch + burst syncs + 6s polling
 
