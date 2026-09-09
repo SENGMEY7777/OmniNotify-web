@@ -254,6 +254,9 @@
                     <template #cell-title="{ row, value }">
                         <div class="event-cell d-flex align-items-center gap-2">
                             <span class="event-title">{{ value || row.event_type }}</span>
+                            <span v-if="row.duplicate_count > 1" class="duplicate-count" :title="`${row.duplicate_count} identical notifications`">
+                                ×{{ row.duplicate_count }}
+                            </span>
                         </div>
                     </template>
 
@@ -327,11 +330,12 @@
                             <button
                                 type="button"
                                 class="btn-action-icon btn-action-delete"
-                                :class="{ 'btn-action-locked': isSecurityOrFinancialAlert(row) }"
-                                :title="isSecurityOrFinancialAlert(row) ? 'Security & financial records are locked' : 'Archive Notification'"
+                                :class="{ 'btn-action-locked': isSecurityOrFinancialAlert(row) || !isNotificationRead(row) }"
+                                :disabled="!isNotificationRead(row) || deleting"
+                                :title="isSecurityOrFinancialAlert(row) ? 'Security & financial records are locked' : !isNotificationRead(row) ? 'Mark notification as read before deleting' : 'Archive Notification'"
                                 @click.stop="openDeleteModal(row)"
                             >
-                                <IconShieldLock v-if="isSecurityOrFinancialAlert(row)" :size="16" />
+                                <IconShieldLock v-if="isSecurityOrFinancialAlert(row) || !isNotificationRead(row)" :size="16" />
                                 <IconTrash v-else :size="16" />
                             </button>
                         </div>
@@ -362,12 +366,12 @@
             size="md"
         >
             <div v-if="activeNotification" class="notification-detail-box">
-                <div class="detail-badge-strip d-flex align-items-center gap-2 mb-3 flex-wrap">
+                <div class="core-banking-badges d-flex align-items-center gap-2 mb-3 flex-wrap">
                     <span class="channel-badge" :class="activeNotification.channel ? activeNotification.channel.toLowerCase().replace(/[^a-z0-9]/g, '_') : ''">
                         {{ activeNotification.channel }}
                     </span>
                     <span class="priority-badge" :class="activeNotification.priority ? activeNotification.priority.toLowerCase() : 'normal'">
-                        {{ activeNotification.priority || 'NORMAL' }}
+                        <span class="badge-dot"></span>{{ activeNotification.priority || 'NORMAL' }}
                     </span>
                     <span class="status-badge" :class="activeNotification.status ? activeNotification.status.toLowerCase() : 'pending'">
                         <span class="status-dot"></span>
@@ -375,25 +379,35 @@
                     </span>
                 </div>
 
-                <div class="detail-message-card p-3 rounded-3 mb-3">
-                    <h6 class="detail-message-label text-muted small mb-2">Message Body</h6>
-                    <p class="detail-message-text mb-0">{{ activeNotification.body || 'No message description available.' }}</p>
+                <div class="core-banking-details">
+                    <div class="core-detail-row">
+                        <span>Account holder</span>
+                        <strong>{{ activeNotification.full_name || activeNotification.recipient || 'Unknown' }}</strong>
+                    </div>
+                    <div class="core-detail-row">
+                        <span>Email</span>
+                        <strong>{{ activeNotification.email || 'Unknown' }}</strong>
+                    </div>
+                    <div class="core-detail-row">
+                        <span>Device</span>
+                        <strong>{{ activeNotification.device || activeNotification.metadata?.device || 'Unknown' }}</strong>
+                    </div>
+                    <div class="core-detail-row">
+                        <span>IP address</span>
+                        <strong>{{ activeNotification.ip_address || activeNotification.metadata?.ip_address || 'unknown' }}</strong>
+                    </div>
+                    <div class="core-detail-row">
+                        <span>Event</span>
+                        <strong>{{ activeNotification.event_type || 'SYSTEM_ALERT' }}</strong>
+                    </div>
                 </div>
 
-                <div class="detail-meta-list small text-muted">
-                    <div class="d-flex justify-content-between py-1 border-bottom">
-                        <span>Recipient</span>
-                        <strong class="text-dark">{{ activeNotification.full_name || activeNotification.recipient || '—' }}</strong>
-                    </div>
-                    <div class="d-flex justify-content-between py-1 border-bottom">
-                        <span>Event Type</span>
-                        <strong class="text-dark">{{ activeNotification.event_type || 'SYSTEM_ALERT' }}</strong>
-                    </div>
-                    <div class="d-flex justify-content-between py-1 border-bottom">
-                        <span>Created At</span>
-                        <strong class="text-dark">{{ activeNotification.created_at ? new Date(activeNotification.created_at).toLocaleString() : '—' }}</strong>
-                    </div>
+                <div v-if="isSecurityOrFinancialAlert(activeNotification)" class="security-review-note">
+                    <TablerIcon name="shield-lock" size="20" />
+                    <span>If you do not recognize this activity, secure the account and review it immediately.</span>
                 </div>
+
+                <div class="alert-reference">Alert ID · {{ activeNotification.notification_id || 'Unknown' }}</div>
             </div>
 
             <template #footer-right>
@@ -636,6 +650,36 @@ const columns = [
     { key: 'actions', label: 'Actions' },
 ]
 
+// The same event can be created more than once by retries or repeated delivery
+// requests. Keep the newest copy visible and collapse exact duplicates into one
+// admin row so the list represents unique notification content.
+function notificationGroupKey(item) {
+    return [
+        item.user_id || item.full_name || item.recipient || '',
+        item.event_type || '',
+        item.title || '',
+        item.body || '',
+        item.channel || '',
+        item.priority || '',
+    ].map(value => String(value).trim().toLowerCase()).join('|')
+}
+
+function collapseDuplicateNotifications(list) {
+    const groups = new Map()
+
+    for (const item of list) {
+        const key = notificationGroupKey(item)
+        const current = groups.get(key)
+        if (current) {
+            current.duplicate_count += 1
+        } else {
+            groups.set(key, { ...item, duplicate_count: 1 })
+        }
+    }
+
+    return Array.from(groups.values())
+}
+
 const cancellingId = ref('')
 
 function isSecurityOrFinancialAlert(item) {
@@ -655,6 +699,10 @@ function isSecurityOrFinancialAlert(item) {
         title.includes('LOGIN') ||
         title.includes('SECURITY')
     )
+}
+
+function isNotificationRead(item) {
+    return Boolean(item?.read_at || String(item?.status || '').toUpperCase() === 'READ')
 }
 
 function openDetailModal(row) {
@@ -690,6 +738,12 @@ async function handleDeleteNotification() {
 
     if (isSecurityOrFinancialAlert(target)) {
         toast.warning('🔒 Security Record Locked: For banking fraud prevention and audit compliance, financial transactions and security alerts cannot be deleted.', 'Security Record Locked')
+        showDeleteModal.value = false
+        return
+    }
+
+    if (!isNotificationRead(target)) {
+        toast.warning('Unread notifications cannot be deleted. Mark the notification as read first.', 'Unread Notification Locked')
         showDeleteModal.value = false
         return
     }
@@ -740,7 +794,9 @@ async function load(next = 1, currentLimit = pagination.value.limit) {
             url += `&status=${filters.value.status}`
         }
         const result = await get(url)
-        rows.value = result.data || []
+        // The API returns newest records first, so the first item in each
+        // duplicate group is the copy used for status, timestamp, and actions.
+        rows.value = collapseDuplicateNotifications(result.data || [])
         if (result.pagination) {
             pagination.value = result.pagination
         } else {
@@ -885,11 +941,14 @@ function handleLiveNotification(event) {
         created_at: new Date().toISOString(),
     }
 
+    const duplicateIdx = rows.value.findIndex(r => notificationGroupKey(r) === notificationGroupKey(newRow))
     const existingIdx = rows.value.findIndex(r => r.notification_id === newRow.notification_id)
     if (existingIdx !== -1) {
         rows.value[existingIdx] = newRow
+    } else if (duplicateIdx !== -1) {
+        rows.value[duplicateIdx] = { ...newRow, duplicate_count: rows.value[duplicateIdx].duplicate_count + 1 }
     } else {
-        rows.value.unshift(newRow)
+        rows.value.unshift({ ...newRow, duplicate_count: 1 })
     }
     summaryStats.value.total++
     if (newRow.status === 'DELIVERED') summaryStats.value.delivered++
@@ -926,6 +985,19 @@ onUnmounted(() => {
     margin-top: 6px;
     color: #697489;
     font-size: 15px;
+}
+
+.duplicate-count {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    color: #6d43d8;
+    background: #eee8ff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
 }
 
 .btn-primary-custom {
@@ -1525,6 +1597,74 @@ onUnmounted(() => {
 .detail-message-card {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
+}
+
+.core-banking-badges .channel-badge,
+.core-banking-badges .priority-badge,
+.core-banking-badges .status-badge {
+    min-height: 38px;
+    padding: 7px 14px;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.core-banking-badges .priority-badge {
+    color: #b42318;
+    background: #fff1f0;
+    border: 1px solid #f5b7b1;
+}
+
+.core-banking-badges .badge-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.core-banking-details {
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.core-detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.core-detail-row:last-child { border-bottom: 0; }
+.core-detail-row strong { color: #172033; font-weight: 400; text-align: right; }
+
+.security-review-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 17px 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    color: #334155;
+    background: #f8fafc;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.security-review-note :deep(svg) { color: #b42318; flex: 0 0 auto; }
+
+.alert-reference {
+    margin-top: 18px;
+    color: #64748b;
+    font-size: 13px;
+    letter-spacing: .01em;
 }
 
 .btn-modal-outline {
